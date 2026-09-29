@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package.json package-lock.json* bun.lock* ./
 
 # Install all dependencies for build
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -27,7 +27,7 @@ ENV PORT=3000
 
 # Copy package info and install only production dependencies
 COPY package.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Copy compiled frontend and compiled server
 COPY --from=builder /app/dist ./dist
