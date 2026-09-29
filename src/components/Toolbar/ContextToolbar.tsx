@@ -62,7 +62,10 @@ const SHAPE_PALETTE = [
   '#fbcfe8',
   '#e9d5ff',
   '#fed7aa',
-  '#0f172a',
+  '#3b82f6',
+  '#10b981',
+  '#ef4444',
+  '#1e293b',
 ];
 
 export const ContextToolbar: React.FC<ContextToolbarProps> = ({
@@ -74,7 +77,6 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
   onSendBackward,
   onToggleLock,
   onAlign,
-  onDistribute,
   onGroup,
   onUngroup,
   onTidyUp,
@@ -100,7 +102,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
 
   return (
     <div
-      className="flex items-center gap-1 bg-white/95 backdrop-blur-md px-2 py-1.5 rounded-xl shadow-lg border border-neutral-200/90 text-neutral-700 text-xs select-none transition-all z-50 pointer-events-auto"
+      className="flex items-center gap-1 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-2 py-1.5 rounded-xl shadow-lg border border-neutral-200/90 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 text-xs select-none transition-all z-50 pointer-events-auto"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Color Picker for Sticky / Shape / Fill */}
@@ -108,22 +110,22 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowColorPicker(!showColorPicker)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-neutral-100 transition-colors border border-neutral-200"
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-neutral-200 dark:border-neutral-700 cursor-pointer"
             title="Цвет"
           >
             <div
-              className="w-4 h-4 rounded-full border border-neutral-300"
+              className="w-4 h-4 rounded-full border border-neutral-300 dark:border-neutral-600 shadow-2xs"
               style={{
                 backgroundColor: isSticky
                   ? STICKY_COLORS.find((c) => c.name === first.stickyColor)?.hex || '#fef08a'
                   : first.fill || '#ffffff',
               }}
             />
-            <Palette className="w-3.5 h-3.5 text-neutral-500" />
+            <Palette className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
           </button>
 
           {showColorPicker && (
-            <div className="absolute top-full left-0 mt-2 p-2 bg-white rounded-xl shadow-xl border border-neutral-200 flex gap-1.5 z-50">
+            <div className="absolute top-full left-0 mt-2 p-2 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 flex gap-1.5 z-50">
               {isSticky
                 ? STICKY_COLORS.map((c) => (
                     <button
@@ -132,7 +134,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
                         applyToAll({ stickyColor: c.name });
                         setShowColorPicker(false);
                       }}
-                      className="w-6 h-6 rounded-full border border-neutral-300 hover:scale-110 transition-transform"
+                      className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 hover:scale-110 transition-transform cursor-pointer"
                       style={{ backgroundColor: c.hex }}
                       title={c.name}
                     />
@@ -144,7 +146,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
                         applyToAll({ fill: hex });
                         setShowColorPicker(false);
                       }}
-                      className="w-6 h-6 rounded-full border border-neutral-300 hover:scale-110 transition-transform"
+                      className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 hover:scale-110 transition-transform cursor-pointer"
                       style={{ backgroundColor: hex }}
                     />
                   ))}
@@ -156,7 +158,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Typography Controls */}
       {isText && !isMulti && (
         <>
-          <div className="h-4 w-px bg-neutral-200 mx-1" />
+          <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
 
           {/* Font Size */}
           <div className="flex items-center gap-1">
@@ -164,19 +166,19 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
               onClick={() =>
                 applyToAll({ fontSize: Math.max((first.fontSize || 14) - 2, 10) })
               }
-              className="p-1 rounded hover:bg-neutral-100 font-bold"
+              className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold cursor-pointer"
               title="Уменьшить шрифт"
             >
               A-
             </button>
-            <span className="w-6 text-center font-mono text-[11px] text-neutral-600">
+            <span className="w-6 text-center font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
               {first.fontSize || 14}
             </span>
             <button
               onClick={() =>
                 applyToAll({ fontSize: Math.min((first.fontSize || 14) + 2, 48) })
               }
-              className="p-1 rounded hover:bg-neutral-100 font-bold"
+              className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold cursor-pointer"
               title="Увеличить шрифт"
             >
               A+
@@ -186,8 +188,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           {/* Bold / Italic */}
           <button
             onClick={() => applyToAll({ isBold: !first.isBold })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.isBold ? 'bg-neutral-200 text-blue-600 font-bold' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.isBold ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400 font-bold' : ''
             }`}
             title="Жирный"
           >
@@ -195,8 +197,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           </button>
           <button
             onClick={() => applyToAll({ isItalic: !first.isItalic })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.isItalic ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.isItalic ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="Курсив"
           >
@@ -206,8 +208,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           {/* Alignments */}
           <button
             onClick={() => applyToAll({ textAlign: 'left' })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.textAlign === 'left' ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.textAlign === 'left' ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="По левому краю"
           >
@@ -215,8 +217,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           </button>
           <button
             onClick={() => applyToAll({ textAlign: 'center' })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              (first.textAlign || 'center') === 'center' ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              (first.textAlign || 'center') === 'center' ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="По центру"
           >
@@ -228,49 +230,49 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Alignment Controls when Multiple Elements are selected */}
       {isMulti && onAlign && (
         <>
-          <div className="h-4 w-px bg-neutral-200 mx-1" />
+          <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => onAlign('left')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять влево"
             >
               <AlignHorizontalJustifyStart className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onAlign('center')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять по центру"
             >
               <AlignHorizontalJustifyCenter className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onAlign('right')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять вправо"
             >
               <AlignHorizontalJustifyEnd className="w-3.5 h-3.5" />
             </button>
 
-            <div className="h-3 w-px bg-neutral-200 mx-0.5" />
+            <div className="h-3 w-px bg-neutral-200 dark:bg-neutral-800 mx-0.5" />
 
             <button
               onClick={() => onAlign('top')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять по верхнему краю"
             >
               <AlignVerticalJustifyStart className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onAlign('middle')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять по середине"
             >
               <AlignVerticalJustifyCenter className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onAlign('bottom')}
-              className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Выровнять по нижнему краю"
             >
               <AlignVerticalJustifyEnd className="w-3.5 h-3.5" />
@@ -280,11 +282,11 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           {/* Group / Ungroup button */}
           {(onGroup || onUngroup) && (
             <>
-              <div className="h-4 w-px bg-neutral-200 mx-1" />
+              <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
               <button
                 onClick={isGrouped ? onUngroup : onGroup}
-                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${
-                  isGrouped ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-neutral-100'
+                className={`flex items-center gap-1 px-2 py-1 rounded transition-colors cursor-pointer ${
+                  isGrouped ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
                 }`}
                 title={isGrouped ? 'Разгруппировать (Ctrl+Shift+G)' : 'Сгруппировать (Ctrl+G)'}
               >
@@ -299,13 +301,13 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           {/* Tidy Up / Auto Grid shortcut */}
           {onTidyUp && (
             <>
-              <div className="h-4 w-px bg-neutral-200 mx-1" />
+              <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
               <button
                 onClick={onTidyUp}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold border border-indigo-200/80 shadow-xs transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200/80 dark:border-indigo-800/60 shadow-2xs transition-all cursor-pointer"
                 title="Упорядочить выделенные стикеры и карточки в аккуратную сетку"
               >
-                <LayoutGrid className="w-3.5 h-3.5 text-indigo-600" />
+                <LayoutGrid className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span className="text-[11px]">Сетка</span>
               </button>
             </>
@@ -316,11 +318,11 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Connector Line Controls */}
       {isConnector && (
         <>
-          <div className="h-4 w-px bg-neutral-200 mx-1" />
+          <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
           <button
             onClick={() => applyToAll({ lineType: 'curved' })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              (first.lineType || 'curved') === 'curved' ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              (first.lineType || 'curved') === 'curved' ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="Плавная дуга"
           >
@@ -328,8 +330,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           </button>
           <button
             onClick={() => applyToAll({ lineType: 'orthogonal' })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.lineType === 'orthogonal' ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.lineType === 'orthogonal' ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="Прямоугольный угол"
           >
@@ -337,8 +339,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
           </button>
           <button
             onClick={() => applyToAll({ lineType: 'straight' })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.lineType === 'straight' ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.lineType === 'straight' ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="Прямая линия"
           >
@@ -347,8 +349,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
 
           <button
             onClick={() => applyToAll({ arrowEnd: !first.arrowEnd })}
-            className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-              first.arrowEnd !== false ? 'bg-neutral-200 text-blue-600' : ''
+            className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+              first.arrowEnd !== false ? 'bg-neutral-200 dark:bg-neutral-700 text-indigo-600 dark:text-indigo-400' : ''
             }`}
             title="Стрелка на конце"
           >
@@ -358,12 +360,12 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       )}
 
       {/* Common Actions */}
-      <div className="h-4 w-px bg-neutral-200 mx-1" />
+      <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
 
       {/* Duplicate */}
       <button
         onClick={onDuplicate}
-        className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
         title="Дублировать (Ctrl+D)"
       >
         <Copy className="w-3.5 h-3.5" />
@@ -372,14 +374,14 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Z-Index Layering */}
       <button
         onClick={onBringForward}
-        className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
         title="На передний план"
       >
         <BringToFront className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={onSendBackward}
-        className="p-1.5 rounded hover:bg-neutral-100 transition-colors"
+        className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
         title="На задний план"
       >
         <SendToBack className="w-3.5 h-3.5" />
@@ -388,8 +390,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Lock / Unlock */}
       <button
         onClick={onToggleLock}
-        className={`p-1.5 rounded hover:bg-neutral-100 transition-colors ${
-          isLocked ? 'text-amber-600 bg-amber-50' : ''
+        className={`p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer ${
+          isLocked ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50' : ''
         }`}
         title={isLocked ? 'Разблокировать' : 'Заблокировать'}
       >
@@ -399,7 +401,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
       {/* Delete */}
       <button
         onClick={onDelete}
-        className="p-1.5 rounded hover:bg-red-50 text-red-600 transition-colors"
+        className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 transition-colors cursor-pointer"
         title="Удалить (Del)"
       >
         <Trash2 className="w-3.5 h-3.5" />

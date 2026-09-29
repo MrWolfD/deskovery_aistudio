@@ -89,16 +89,16 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
     <>
       {/* Interactive Minimap floating window */}
       {showMinimap && (
-        <div className="absolute right-5 bottom-16 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-neutral-200/90 p-2 z-30 select-none">
-          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-100 text-[11px] font-semibold text-neutral-600">
+        <div className="absolute right-5 bottom-16 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-xl shadow-xl border border-neutral-200/90 dark:border-neutral-800 p-2 z-30 select-none">
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-neutral-100 dark:border-neutral-800 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
             <span>Мини-карта</span>
-            <span className="font-mono text-neutral-400">{elements.length} эл.</span>
+            <span className="font-mono text-neutral-400 dark:text-neutral-500">{elements.length} эл.</span>
           </div>
 
           <svg
             width={minimapWidth}
             height={minimapHeight}
-            className="bg-neutral-50 rounded-lg border border-neutral-200 cursor-pointer overflow-hidden"
+            className="bg-neutral-50 dark:bg-neutral-950 rounded-lg border border-neutral-200 dark:border-neutral-800 cursor-pointer overflow-hidden"
             onClick={handleMinimapClick}
           >
             {/* Elements render */}
@@ -115,8 +115,8 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
                   y={my}
                   width={mw}
                   height={mh}
-                  fill={el.type === 'frame' ? 'rgba(203, 213, 225, 0.4)' : '#3b82f6'}
-                  stroke={el.type === 'frame' ? '#94a3b8' : 'none'}
+                  fill={el.type === 'frame' ? 'rgba(203, 213, 225, 0.4)' : '#6366f1'}
+                  stroke={el.type === 'frame' ? '#818cf8' : 'none'}
                   strokeWidth={0.5}
                   rx={1}
                 />
@@ -129,8 +129,8 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
               y={(cameraInCanvas.y - paddedBounds.minY) * scale}
               width={cameraInCanvas.width * scale}
               height={cameraInCanvas.height * scale}
-              fill="rgba(59, 130, 246, 0.15)"
-              stroke="#2563eb"
+              fill="rgba(99, 102, 241, 0.18)"
+              stroke="#6366f1"
               strokeWidth={1.5}
               rx={1}
             />
@@ -139,11 +139,11 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
       )}
 
       {/* Main bottom floating controls bar */}
-      <div className="absolute right-5 bottom-4 z-30 flex items-center gap-1.5 bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl shadow-lg border border-neutral-200/80 text-neutral-700 select-none">
+      <div className="absolute right-5 bottom-4 z-30 flex items-center gap-1.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl shadow-lg border border-neutral-200/80 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 select-none">
         {/* Zoom percentage button (click resets to 100%) */}
         <button
           onClick={onResetZoom}
-          className="px-2 py-1 rounded-lg text-xs font-mono font-medium hover:bg-neutral-100 transition-colors w-12 text-center"
+          className="px-2 py-1 rounded-lg text-xs font-mono font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors w-12 text-center cursor-pointer"
           title="Сбросить масштаб на 100%"
         >
           {zoomPercent}%
@@ -152,7 +152,7 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
         {/* Zoom Out */}
         <button
           onClick={onZoomOut}
-          className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           title="Уменьшить (Ctrl -)"
         >
           <ZoomOut className="w-4 h-4" />
@@ -161,7 +161,7 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
         {/* Zoom In */}
         <button
           onClick={onZoomIn}
-          className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           title="Увеличить (Ctrl +)"
         >
           <ZoomIn className="w-4 h-4" />
@@ -170,19 +170,21 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
         {/* Fit to content */}
         <button
           onClick={onFitToContent}
-          className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           title="Масштаб по контенту (Shift + 1)"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
 
-        <div className="h-4 w-px bg-neutral-200 mx-0.5" />
+        <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-0.5" />
 
         {/* Minimap toggle */}
         <button
           onClick={onToggleMinimap}
-          className={`p-1.5 rounded-lg transition-colors ${
-            showMinimap ? 'bg-blue-50 text-blue-600' : 'hover:bg-neutral-100 text-neutral-700'
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+            showMinimap
+              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+              : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
           }`}
           title="Мини-карта обзора доски"
         >
@@ -195,8 +197,10 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
             const next = gridType === 'dots' ? 'lines' : gridType === 'lines' ? 'none' : 'dots';
             onChangeGridType(next);
           }}
-          className={`p-1.5 rounded-lg transition-colors ${
-            gridType !== 'none' ? 'text-blue-600' : 'text-neutral-400 hover:bg-neutral-100'
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+            gridType !== 'none'
+              ? 'text-indigo-600 dark:text-indigo-400'
+              : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
           }`}
           title={`Сетка: ${gridType === 'dots' ? 'Точки' : gridType === 'lines' ? 'Линии' : 'Отключена'}`}
         >
@@ -206,20 +210,22 @@ export const BottomControls: React.FC<BottomControlsProps> = ({
         {/* Snap to grid */}
         <button
           onClick={onToggleSnapToGrid}
-          className={`p-1.5 rounded-lg transition-colors ${
-            snapToGrid ? 'bg-blue-50 text-blue-600' : 'text-neutral-400 hover:bg-neutral-100'
+          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+            snapToGrid
+              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+              : 'text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
           }`}
           title={`Привязка к сетке: ${snapToGrid ? 'ВКЛ' : 'ВЫКЛ'}`}
         >
           <Magnet className="w-4 h-4" />
         </button>
 
-        <div className="h-4 w-px bg-neutral-200 mx-0.5" />
+        <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-0.5" />
 
         {/* Shortcuts */}
         <button
           onClick={onOpenShortcuts}
-          className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
           title="Горячие клавиши (?)"
         >
           <HelpCircle className="w-4 h-4" />

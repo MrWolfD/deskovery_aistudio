@@ -245,6 +245,23 @@ app.post('/api/auth/team-logout', (req, res) => {
   res.json({ ok: true });
 });
 
+function calculateRoomSize(r: RoomState): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(r.elements), 'utf8');
+  } catch (e) {
+    return 0;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 Б';
+  const k = 1024;
+  const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const val = parseFloat((bytes / Math.pow(k, i)).toFixed(1));
+  return `${val} ${sizes[i]}`;
+}
+
 // List all rooms for Lobby — Protected for Team Members only!
 app.get('/api/rooms', (req, res) => {
   if (!isTeamAuthenticated(req)) {
@@ -254,17 +271,81 @@ app.get('/api/rooms', (req, res) => {
     });
   }
 
-  const list = Array.from(rooms.values()).map((r) => ({
-    id: r.id,
-    title: r.title,
-    description: r.description || '',
-    hasPassword: Boolean(r.passwordHash && r.passwordHash.length > 0),
-    usersCount: r.clients.size,
-    elementsCount: r.elements.length,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-  }));
+  const list = Array.from(rooms.values()).map((r) => {
+    const sizeBytes = calculateRoomSize(r);
+    return {
+      id: r.id,
+      title: r.title,
+      description: r.description || '',
+      hasPassword: Boolean(r.passwordHash && r.passwordHash.length > 0),
+      usersCount: r.clients.size,
+      elementsCount: r.elements.length,
+      sizeBytes,
+      sizeFormatted: formatBytes(sizeBytes),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    };
+  });
   res.json({ rooms: list });
+});
+
+// Delete room (Team only, cannot delete 'main')
+app.delete('/api/rooms/:roomId', (req, res) => {
+  if (!isTeamAuthenticated(req)) {
+    return res.status(401).json({ error: 'Требуется авторизация в команде' });
+  }
+
+  const { roomId } = req.params;
+  if (roomId === 'main') {
+    return res.status(400).json({ error: 'Главную доску нельзя удалить' });
+  }
+
+  const room = rooms.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Комната не найдена' });
+  }
+
+  for (const client of room.clients.values()) {
+    try {
+      client.ws.send(JSON.stringify({ type: 'error', message: 'Комната была удалена' }));
+      client.ws.close();
+    } catch (e) {}
+  }
+
+  rooms.delete(roomId);
+  res.json({ ok: true, deletedRoomId: roomId });
+});
+
+// Duplicate room as template (Team only)
+app.post('/api/rooms/:roomId/duplicate', (req, res) => {
+  if (!isTeamAuthenticated(req)) {
+    return res.status(401).json({ error: 'Требуется авторизация в команде' });
+  }
+
+  const source = rooms.get(req.params.roomId);
+  if (!source) {
+    return res.status(404).json({ error: 'Исходная комната не найдена' });
+  }
+
+  const newId = `room-${Date.now().toString(36)}`;
+  const clonedRoom: RoomState = {
+    id: newId,
+    title: `${source.title} (Копия)`,
+    description: source.description,
+    passwordHash: source.passwordHash,
+    inviteToken: generateInviteToken(),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    elements: JSON.parse(JSON.stringify(source.elements)),
+    clients: new Map(),
+  };
+
+  rooms.set(newId, clonedRoom);
+  res.status(201).json({
+    id: clonedRoom.id,
+    title: clonedRoom.title,
+    inviteToken: clonedRoom.inviteToken,
+  });
 });
 
 // Create new room — Protected for Team Members only!

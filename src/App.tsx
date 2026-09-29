@@ -88,6 +88,33 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isMediaUploadOpen, setIsMediaUploadOpen] = useState(false);
 
+  // Theme State: 'light' | 'dark'
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('deskovery_theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  });
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('deskovery_theme', theme);
+    }
+  }, [theme]);
+
   // Team Token & Access Gate
   const [teamToken, setTeamToken] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -1208,12 +1235,18 @@ export default function App() {
         initialError={lobbyError}
         teamToken={teamToken}
         onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
 
   return (
-    <div className="w-screen h-screen relative overflow-hidden bg-neutral-50 flex flex-col font-sans select-none">
+    <div
+      className={`w-screen h-screen relative overflow-hidden flex flex-col font-sans select-none transition-colors ${
+        theme === 'dark' ? 'bg-neutral-950 text-neutral-100' : 'bg-neutral-50 text-neutral-900'
+      }`}
+    >
       {/* Top Header */}
       <TopHeader
         boardTitle={boardTitle}
@@ -1230,6 +1263,8 @@ export default function App() {
         connectionStatus={connectionStatus}
         roomId={roomId}
         isProtected={isCurrentRoomProtected}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onNavigateToLobby={handleNavigateToLobby}
         onOpenShareModal={() => setIsShareModalOpen(true)}
       />
@@ -1246,6 +1281,7 @@ export default function App() {
           viewport={viewport}
           gridType={gridType}
           snapToGrid={snapToGrid}
+          theme={theme}
           onUpdateViewport={setViewport}
           onSelectElements={handleSelectElements}
           onAddElement={handleAddElement}

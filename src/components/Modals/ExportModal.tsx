@@ -224,21 +224,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs select-none">
-      <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-md overflow-hidden flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs select-none">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
               <Download className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-sm text-neutral-900">
+            <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
               Экспорт и управление доской
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -249,17 +249,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {/* Export PNG */}
           <button
             onClick={handleExportPng}
-            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group"
+            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700/80 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-neutral-800/60 transition-all text-left group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <Download className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-semibold text-xs text-neutral-900 block">
+                <span className="font-semibold text-xs text-neutral-900 dark:text-white block">
                   Экспорт в PNG изображение
                 </span>
-                <span className="text-[11px] text-neutral-500">
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                   Высокое разрешение со всеми фигурами и текстом
                 </span>
               </div>
@@ -269,17 +269,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {/* Export JSON */}
           <button
             onClick={handleExportJson}
-            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-left group"
+            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700/80 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-neutral-800/60 transition-all text-left group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <FileCode className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-semibold text-xs text-neutral-900 block">
+                <span className="font-semibold text-xs text-neutral-900 dark:text-white block">
                   Сохранить доску (.json)
                 </span>
-                <span className="text-[11px] text-neutral-500">
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                   Резервная копия проекта со всеми свойствами
                 </span>
               </div>
@@ -289,17 +289,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           {/* Import JSON */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all text-left group"
+            className="flex items-center justify-between p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700/80 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-neutral-800/60 transition-all text-left group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <Upload className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-semibold text-xs text-neutral-900 block">
+                <span className="font-semibold text-xs text-neutral-900 dark:text-white block">
                   Загрузить доску из файла
                 </span>
-                <span className="text-[11px] text-neutral-500">
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                   Открыть ранее сохраненный .json файл
                 </span>
               </div>
@@ -313,7 +313,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             className="hidden"
           />
 
-          <div className="h-px bg-neutral-100 my-1" />
+          <div className="h-px bg-neutral-200 dark:bg-neutral-800 my-1" />
 
           {/* Clear board */}
           <button
@@ -323,7 +323,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 onClose();
               }
             }}
-            className="flex items-center gap-2 p-2.5 rounded-xl text-xs text-red-600 hover:bg-red-50 transition-colors"
+            className="flex items-center gap-2 p-2.5 rounded-xl text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Очистить холст</span>

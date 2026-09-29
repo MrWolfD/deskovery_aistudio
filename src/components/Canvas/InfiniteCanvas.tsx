@@ -36,6 +36,7 @@ interface InfiniteCanvasProps {
   viewport: Viewport;
   gridType: 'dots' | 'lines' | 'none';
   snapToGrid: boolean;
+  theme?: 'light' | 'dark';
   onUpdateViewport: (viewport: Viewport) => void;
   onSelectElements: (ids: string[]) => void;
   onAddElement: (element: BoardElement) => void;
@@ -59,6 +60,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   viewport,
   gridType,
   snapToGrid,
+  theme = 'light',
   onUpdateViewport,
   onSelectElements,
   onAddElement,
@@ -1142,7 +1144,9 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full relative overflow-hidden select-none bg-neutral-50"
+      className={`w-full h-full relative overflow-hidden select-none transition-colors ${
+        theme === 'dark' ? 'bg-neutral-950 text-neutral-100' : 'bg-neutral-50 text-neutral-900'
+      }`}
       style={{ cursor: cursorStyle }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -1187,8 +1191,8 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
               cx={2}
               cy={2}
               r={Math.max(1 * viewport.zoom, 0.8)}
-              fill="#cbd5e1"
-              opacity={0.6}
+              fill={theme === 'dark' ? '#475569' : '#cbd5e1'}
+              opacity={theme === 'dark' ? 0.45 : 0.6}
             />
           </pattern>
 
@@ -1205,8 +1209,9 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
             <path
               d={`M ${24 * viewport.zoom} 0 L 0 0 0 ${24 * viewport.zoom}`}
               fill="none"
-              stroke="#e2e8f0"
+              stroke={theme === 'dark' ? '#334155' : '#e2e8f0'}
               strokeWidth={1}
+              opacity={theme === 'dark' ? 0.4 : 0.8}
             />
           </pattern>
         </defs>

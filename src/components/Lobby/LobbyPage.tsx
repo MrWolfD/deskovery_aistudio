@@ -15,6 +15,12 @@ import {
   RefreshCw,
   FolderLock,
   LogOut,
+  Sun,
+  Moon,
+  HardDrive,
+  Layers,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 
 export interface RoomSummary {
@@ -24,6 +30,8 @@ export interface RoomSummary {
   hasPassword: boolean;
   usersCount: number;
   elementsCount: number;
+  sizeBytes?: number;
+  sizeFormatted?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -33,6 +41,8 @@ interface LobbyPageProps {
   initialError?: string | null;
   teamToken?: string;
   onLogout?: () => void;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const LobbyPage: React.FC<LobbyPageProps> = ({
@@ -40,6 +50,8 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
   initialError,
   teamToken,
   onLogout,
+  theme = 'dark',
+  onToggleTheme,
 }) => {
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -248,6 +260,57 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
     }
   };
 
+  const handleDeleteRoom = async (room: RoomSummary) => {
+    if (room.id === 'main') {
+      alert('Главную доску нельзя удалить.');
+      return;
+    }
+
+    if (!window.confirm(`Вы уверены, что хотите безвозвратно удалить доску "${room.title}"?`)) {
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      if (teamToken) headers['Authorization'] = `Bearer ${teamToken}`;
+
+      const res = await fetch(`/api/rooms/${room.id}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (res.ok) {
+        setRooms((prev) => prev.filter((r) => r.id !== room.id));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Не удалось удалить доску');
+      }
+    } catch (e) {
+      alert('Ошибка сети при удалении доски');
+    }
+  };
+
+  const handleDuplicateRoom = async (roomId: string) => {
+    try {
+      const headers: Record<string, string> = {};
+      if (teamToken) headers['Authorization'] = `Bearer ${teamToken}`;
+
+      const res = await fetch(`/api/rooms/${roomId}/duplicate`, {
+        method: 'POST',
+        headers,
+      });
+
+      if (res.ok) {
+        fetchRooms();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Не удалось клонировать доску');
+      }
+    } catch (e) {
+      alert('Ошибка сети при клонировании доски');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-900 text-neutral-100 flex flex-col font-sans select-none antialiased">
       {/* Top Bar */}
@@ -270,11 +333,25 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
         <div className="flex items-center gap-2.5">
           <button
             onClick={fetchRooms}
-            className="p-2 rounded-lg bg-neutral-800/80 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors border border-neutral-700/60"
+            className="p-2 rounded-lg bg-neutral-800/80 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors border border-neutral-700/60 cursor-pointer"
             title="Обновить список"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
+
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              className="p-2 rounded-lg bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors border border-neutral-700/60 cursor-pointer"
+              title={theme === 'dark' ? 'Включить светлую тему' : 'Включить темную тему'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-400" />
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => {
@@ -438,14 +515,53 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
 
                   {/* Footer */}
                   <div className="pt-3 border-t border-neutral-700/40 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[11px] text-neutral-500">
-                      <Clock className="w-3 h-3" />
-                      <span>ID: {room.id}</span>
+                    <div className="flex items-center gap-3 text-[11px] text-neutral-400">
+                      {/* Size Badge */}
+                      <div className="flex items-center gap-1 font-mono text-indigo-400 font-semibold" title="Размер данных доски на сервере">
+                        <HardDrive className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>{room.sizeFormatted || '0 Б'}</span>
+                      </div>
+
+                      {/* Elements count */}
+                      <div className="flex items-center gap-1" title="Количество элементов на доске">
+                        <Layers className="w-3 h-3 text-neutral-500" />
+                        <span>{room.elementsCount || 0}</span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
-                      <span>{room.hasPassword ? 'Ввести пароль' : 'Войти'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-1.5">
+                      {/* Duplicate Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateRoom(room.id);
+                        }}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-700/80 transition-colors cursor-pointer"
+                        title="Создать копию доски (шаблон)"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Delete Button */}
+                      {room.id !== 'main' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRoom(room);
+                          }}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Удалить доску"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      <div className="flex items-center gap-1 text-xs font-semibold text-indigo-400 group-hover:translate-x-0.5 transition-transform ml-1">
+                        <span>{room.hasPassword ? 'Пароль' : 'Войти'}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </div>
                     </div>
                   </div>
                 </div>
