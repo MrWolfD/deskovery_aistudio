@@ -1,0 +1,8 @@
+{
+  "name": "MiroFlow - Интерактивная онлайн-доска",
+  "description": "Мощная бесконечная интерактивная доска для брейншторминга, заметок, диаграмм и совместной работы в стиле Miro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "summary": "Все названия успешно обновлены на Deskovery. Сконфигурированы Caddyfile, docker-compose.yml и .env для автоматического бесплатного HTTPS/WSS на поддомене deskovery. Готова пошаговая инструкция для Ubuntu 24.04.",
+  "updatedAt": "2026-09-29T16:43:01.803733696Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

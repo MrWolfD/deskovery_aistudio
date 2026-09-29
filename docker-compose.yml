@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  board:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: deskovery-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: deskovery-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Замените на ваш полный сабдомен (например deskovery.duckdns.org)
+      - DOMAIN=${DOMAIN:-deskovery.duckdns.org}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - board
+
+volumes:
+  caddy_data:
+  caddy_config:

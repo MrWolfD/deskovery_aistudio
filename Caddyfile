@@ -1,0 +1,7 @@
+# Caddy configuration for automatic HTTPS and WebSocket reverse-proxying
+
+{$DOMAIN:localhost} {
+    # Automatic HTTPS is enabled by default when a domain is supplied.
+    # Pass all traffic (HTTP + WebSockets) to the deskovery app container
+    reverse_proxy board:3000
+}

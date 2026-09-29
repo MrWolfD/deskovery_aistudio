@@ -1,11 +1,75 @@
-<div align="center">
+# 🎨 Polydesk Whiteboard
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Современная бесконечная интерактивная доска для командной работы, брейншторминга, диаграмм, заметок и медиа в стиле Miro и Figma.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## ✨ Ключевые возможности
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+* **🎬 Медиафайлы (Видео и Аудио)**:
+  - Загрузка видео (**MP4, WebM, MOV**) и аудио (**MP3, WAV, OGG, AAC**), а также изображений.
+  - Быстрый просмотр и прослушивание прямо на доске с интерактивным плеером (Play/Pause, таймлайн со скраббером, громкость/mute, зацикливание, полноэкранный режим).
+  - Drag-and-Drop медиафайлов прямо на холст или быстрая вставка через буфер обмена (`Ctrl+V`).
+* **👥 Мультиплеер в реальном времени**:
+  - Совместная работа нескольких пользователей на одной доске по ссылке с комнатой (`?room=team-name`).
+  - Отображение живых курсоров коллег с именами, цветами и статусами.
+  - Мгновенная синхронизация создания, перемещения, изменения размера и удаления элементов.
+  - Автономный фоллбэк на `BroadcastChannel` для синхронизации между вкладками даже без серверного окружения.
+* **📐 Фигуры и масштабирование**:
+  - Стикеры 7 цветов, блок-схемы (прямоугольники, ромбы, цилиндры баз данных, облака, звезды).
+  - 8 интерактивных маркеров трансформации с пропорциональным масштабированием (Shift) и бейджем точных размеров.
+  - Соединительные линии (коннекторы) с привязкой к опорным точкам.
+  - Инструменты рисования карандашом и маркером-текстовыделителем.
+* **📊 Организация и презентация**:
+  - Agile-карточки (статусы, приоритеты, теги, исполнитель).
+  - Фреймы и полноэкранный режим презентации по слайдам.
+  - Экспорт в PNG, SVG и JSON-файлы доски.
 
-</div>
+---
+
+## 🚀 Быстрый старт локально
+
+```bash
+# Установка зависимостей
+npm install
+
+# Запуск сервера разработки (порт 3000, включая WebSocket)
+npm run dev
+```
+
+Откройте в браузере: `http://localhost:3000`
+
+---
+
+## 🌐 Публикация на GitHub и GitHub Pages
+
+Проект полностью настроен для автоматической публикации на **GitHub Pages** с помощью GitHub Actions:
+
+### Шаг 1: Создайте репозиторий на GitHub
+1. Перейдите на [github.com/new](https://github.com/new).
+2. Задайте имя репозитория (например, `polydesk-whiteboard`) и нажмите **Create repository**.
+
+### Шаг 2: Отправьте код в репозиторий
+```bash
+git init
+git add .
+git commit -m "feat: initial commit with media and multiplayer"
+git branch -M main
+git remote add origin https://github.com/<ВАШ_GITHUB_ЛОГИН>/polydesk-whiteboard.git
+git push -u origin main
+```
+
+### Шаг 3: Включите GitHub Pages
+1. В вашем репозитории на GitHub перейдите в **Settings** (Настройки) ➔ **Pages**.
+2. В разделе **Build and deployment** ➔ **Source** выберите **GitHub Actions**.
+3. Готово! GitHub Actions автоматически запустит сборку из файла `.github/workflows/deploy.yml` и опубликует вашу доску по адресу:
+   `https://<ВАШ_GITHUB_ЛОГИН>.github.io/polydesk-whiteboard/`
+
+---
+
+## ⚡ Развертывание полного сервера с WebSocket (Vercel / Render / Railway / Cloud Run)
+
+В репозитории есть готовый сервер `server.ts` на Express + `ws`:
+- Для деплоя на **Render** / **Railway** / **Fly.io** / **Cloud Run**:
+  - Build Command: `npm run build`
+  - Start Command: `npm start` (запускает `node server.js` с WebSocket сервером).
