@@ -27,6 +27,7 @@ import { PresentationModal } from './components/Modals/PresentationModal';
 import { ShareModal } from './components/Modals/ShareModal';
 import { MediaUploadModal } from './components/Modals/MediaUploadModal';
 import { MultiplayerService, ConnectionStatus } from './services/multiplayer';
+import { LobbyPage } from './components/Lobby/LobbyPage';
 
 const STORAGE_KEY = 'deskovery_board_data_v1';
 const LEGACY_STORAGE_KEY = 'polydesk_board_data_v3';
@@ -86,16 +87,36 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isMediaUploadOpen, setIsMediaUploadOpen] = useState(false);
 
-  // Real-time Multiplayer State
+  // View Mode: 'lobby' or 'board'
+  const [currentView, setCurrentView] = useState<'lobby' | 'board'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('room') ? 'board' : 'lobby';
+    }
+    return 'lobby';
+  });
+
+  // Real-time Multiplayer & Room State
   const multiplayerServiceRef = useRef<MultiplayerService | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [roomId, setRoomId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      return p.get('room') || 'default';
+      return p.get('room') || 'main';
     }
-    return 'default';
+    return 'main';
   });
+  const [roomPassword, setRoomPassword] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const r = p.get('room') || 'main';
+      return sessionStorage.getItem(`deskovery_pass_${r}`) || '';
+    }
+    return '';
+  });
+  const [isCurrentRoomProtected, setIsCurrentRoomProtected] = useState<boolean>(false);
+  const [lobbyError, setLobbyError] = useState<string | null>(null);
+
   const [currentUser, setCurrentUser] = useState<Collaborator>(() => ({
     id: `user-${Date.now()}`,
     name: 'Вы',
@@ -106,8 +127,39 @@ export default function App() {
   }));
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
 
+  // Navigation handlers
+  const handleSelectRoom = useCallback((targetRoomId: string, password?: string) => {
+    setRoomId(targetRoomId);
+    setRoomPassword(password || '');
+    setLobbyError(null);
+    setCurrentView('board');
+
+    // Update browser URL
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', targetRoomId);
+      window.history.pushState({}, '', url.toString());
+    }
+
+    if (multiplayerServiceRef.current) {
+      multiplayerServiceRef.current.switchRoom(targetRoomId, password || '');
+    }
+  }, []);
+
+  const handleNavigateToLobby = useCallback(() => {
+    setCurrentView('lobby');
+    setLobbyError(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+      window.history.pushState({}, '', url.pathname);
+    }
+  }, []);
+
   // Connect to Multiplayer Room
   useEffect(() => {
+    if (currentView !== 'board') return;
+
     const service = new MultiplayerService(
       {
         onConnectionChange: (status) => {
@@ -167,8 +219,16 @@ export default function App() {
           }
           if (title) setBoardTitle(title);
         },
+        onAuthError: (errMsg) => {
+          setLobbyError(errMsg);
+          setCurrentView('lobby');
+        },
+        onAuthSuccess: (_rId, isProtected) => {
+          setIsCurrentRoomProtected(isProtected);
+        },
       },
-      roomId
+      roomId,
+      roomPassword
     );
 
     multiplayerServiceRef.current = service;
@@ -177,7 +237,7 @@ export default function App() {
     return () => {
       service.destroy();
     };
-  }, [roomId]);
+  }, [roomId, roomPassword, currentView]);
 
   // Auto-save to LocalStorage
   useEffect(() => {
@@ -1019,6 +1079,10 @@ export default function App() {
     };
   }, [selectedElements, viewport]);
 
+  if (currentView === 'lobby') {
+    return <LobbyPage onSelectRoom={handleSelectRoom} initialError={lobbyError} />;
+  }
+
   return (
     <div className="w-screen h-screen relative overflow-hidden bg-neutral-50 flex flex-col font-sans select-none">
       {/* Top Header */}
@@ -1036,6 +1100,8 @@ export default function App() {
         isMultiplayerActive={true}
         connectionStatus={connectionStatus}
         roomId={roomId}
+        isProtected={isCurrentRoomProtected}
+        onNavigateToLobby={handleNavigateToLobby}
         onOpenShareModal={() => setIsShareModalOpen(true)}
       />
 

@@ -12,13 +12,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '50mb' }));
 
 // In-memory room state for real-time collaboration
 interface RoomClient {
   ws: WebSocket;
+  authenticated: boolean;
   user: {
     id: string;
     name: string;
@@ -30,19 +31,60 @@ interface RoomClient {
 }
 
 interface RoomState {
-  elements: any[];
+  id: string;
   title: string;
+  description?: string;
+  password?: string;
+  createdAt: number;
+  updatedAt: number;
+  elements: any[];
   clients: Map<string, RoomClient>;
 }
 
 const rooms = new Map<string, RoomState>();
 
-function getOrCreateRoom(roomId: string): RoomState {
+// Pre-seed default starter rooms
+function initializeDefaultRooms() {
+  if (!rooms.has('main')) {
+    rooms.set('main', {
+      id: 'main',
+      title: 'Общая доска (Открытая)',
+      description: 'Главное открытое пространство для быстрых заметок и брейнштормов',
+      password: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      elements: [],
+      clients: new Map(),
+    });
+  }
+
+  if (!rooms.has('team-secret')) {
+    rooms.set('team-secret', {
+      id: 'team-secret',
+      title: 'Командный спринт (Приватная)',
+      description: 'Закрытая доска для спринтов и планов команды (Пароль по умолчанию: 1234)',
+      password: '1234',
+      createdAt: Date.now() - 3600000,
+      updatedAt: Date.now(),
+      elements: [],
+      clients: new Map(),
+    });
+  }
+}
+
+initializeDefaultRooms();
+
+function getOrCreateRoom(roomId: string, title?: string, password?: string, description?: string): RoomState {
   let room = rooms.get(roomId);
   if (!room) {
     room = {
+      id: roomId,
       elements: [],
-      title: 'Новая доска',
+      title: title || (roomId === 'main' ? 'Общая доска' : `Доска ${roomId}`),
+      description: description || '',
+      password: password || '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
       clients: new Map(),
     };
     rooms.set(roomId, room);
@@ -56,7 +98,7 @@ function broadcastToRoom(roomId: string, message: any, excludeUserId?: string | 
   const data = JSON.stringify(message);
   for (const [userId, client] of room.clients.entries()) {
     if (excludeUserId && userId === excludeUserId) continue;
-    if (client.ws.readyState === WebSocket.OPEN) {
+    if (client.authenticated && client.ws.readyState === WebSocket.OPEN) {
       try {
         client.ws.send(data);
       } catch (err) {
@@ -66,20 +108,98 @@ function broadcastToRoom(roomId: string, message: any, excludeUserId?: string | 
   }
 }
 
-// REST health check and board state endpoint
+// REST Endpoints
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now(), activeRooms: rooms.size });
 });
 
+// List all rooms for Lobby (public info, passwords are NEVER exposed)
+app.get('/api/rooms', (_req, res) => {
+  const list = Array.from(rooms.values()).map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description || '',
+    hasPassword: Boolean(r.password && r.password.trim().length > 0),
+    usersCount: r.clients.size,
+    elementsCount: r.elements.length,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+  res.json({ rooms: list });
+});
+
+// Create new room
+app.post('/api/rooms', (req, res) => {
+  const { title, description, password, customId } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'Название комнаты обязательно' });
+  }
+
+  const rawId = (customId || title)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9а-яё_-]/gi, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 30);
+  
+  const id = rawId && !rooms.has(rawId) ? rawId : `room-${Date.now().toString(36)}`;
+
+  const newRoom: RoomState = {
+    id,
+    title: title.trim(),
+    description: description ? description.trim() : '',
+    password: password ? String(password).trim() : '',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    elements: [],
+    clients: new Map(),
+  };
+
+  rooms.set(id, newRoom);
+
+  res.status(201).json({
+    id: newRoom.id,
+    title: newRoom.title,
+    description: newRoom.description,
+    hasPassword: Boolean(newRoom.password && newRoom.password.length > 0),
+    createdAt: newRoom.createdAt,
+  });
+});
+
+// Verify room password
+app.post('/api/rooms/:roomId/verify', (req, res) => {
+  const room = rooms.get(req.params.roomId);
+  if (!room) {
+    return res.status(404).json({ ok: false, error: 'Комната не найдена' });
+  }
+
+  const hasPassword = Boolean(room.password && room.password.trim().length > 0);
+  if (!hasPassword) {
+    return res.json({ ok: true, isProtected: false });
+  }
+
+  const inputPassword = req.body.password ? String(req.body.password).trim() : '';
+  if (inputPassword === room.password?.trim()) {
+    return res.json({ ok: true, isProtected: true });
+  } else {
+    return res.status(401).json({ ok: false, error: 'Неверный пароль или PIN-код' });
+  }
+});
+
+// Get single room details
 app.get('/api/rooms/:roomId', (req, res) => {
   const room = rooms.get(req.params.roomId);
   if (!room) {
-    return res.status(404).json({ error: 'Room not found' });
+    return res.status(404).json({ error: 'Комната не найдена' });
   }
   res.json({
+    id: room.id,
     title: room.title,
+    description: room.description || '',
+    hasPassword: Boolean(room.password && room.password.trim().length > 0),
     elementsCount: room.elements.length,
     usersCount: room.clients.size,
+    updatedAt: room.updatedAt,
   });
 });
 
@@ -105,13 +225,14 @@ async function startServer() {
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws: WebSocket) => {
-    let currentRoomId = 'default';
+    let currentRoomId = 'main';
     let currentUserId: string | null = null;
+    let isAuthenticated = false;
 
     ws.on('message', (rawData: string) => {
       try {
         const msg = JSON.parse(rawData.toString());
-        const { type, roomId = 'default' } = msg;
+        const { type, roomId = 'main' } = msg;
 
         switch (type) {
           case 'join': {
@@ -120,22 +241,44 @@ async function startServer() {
             currentUserId = uid;
             const room = getOrCreateRoom(roomId);
 
-            // Store client
+            // Check password if room is protected
+            const isProtected = Boolean(room.password && room.password.trim().length > 0);
+            if (isProtected) {
+              const providedPassword = msg.password ? String(msg.password).trim() : '';
+              if (providedPassword !== room.password?.trim()) {
+                ws.send(
+                  JSON.stringify({
+                    type: 'auth_error',
+                    roomId,
+                    message: 'Для доступа к этой комнате требуется верный пароль или PIN-код',
+                  })
+                );
+                return;
+              }
+            }
+
+            isAuthenticated = true;
+
+            // Store authorized client
             room.clients.set(uid, {
               ws,
+              authenticated: true,
               user: msg.user,
             });
 
             // Send initial state to the newcomer
-            const currentUsers = Array.from(room.clients.values()).map((c) => ({
-              ...c.user,
-              isOnline: true,
-            }));
+            const currentUsers = Array.from(room.clients.values())
+              .filter((c) => c.authenticated)
+              .map((c) => ({
+                ...c.user,
+                isOnline: true,
+              }));
 
             ws.send(
               JSON.stringify({
                 type: 'init',
                 roomId,
+                isProtected,
                 elements: room.elements,
                 title: room.title,
                 users: currentUsers,
@@ -155,7 +298,7 @@ async function startServer() {
           }
 
           case 'cursor_move': {
-            if (!currentUserId) return;
+            if (!isAuthenticated || !currentUserId) return;
             const room = rooms.get(roomId);
             if (room) {
               const client = room.clients.get(currentUserId);
@@ -181,7 +324,9 @@ async function startServer() {
           }
 
           case 'element:create': {
+            if (!isAuthenticated) return;
             const room = getOrCreateRoom(roomId);
+            room.updatedAt = Date.now();
             const el = msg.element;
             const existingIdx = room.elements.findIndex((e) => e.id === el.id);
             if (existingIdx >= 0) {
@@ -202,7 +347,9 @@ async function startServer() {
           }
 
           case 'element:update': {
+            if (!isAuthenticated) return;
             const room = getOrCreateRoom(roomId);
+            room.updatedAt = Date.now();
             const { id, updates } = msg;
             const idx = room.elements.findIndex((e) => e.id === id);
             if (idx >= 0) {
@@ -222,7 +369,9 @@ async function startServer() {
           }
 
           case 'element:delete': {
+            if (!isAuthenticated) return;
             const room = getOrCreateRoom(roomId);
+            room.updatedAt = Date.now();
             const idsToDelete: string[] = Array.isArray(msg.ids) ? msg.ids : [msg.id];
             room.elements = room.elements.filter((e) => !idsToDelete.includes(e.id));
             broadcastToRoom(
@@ -238,10 +387,11 @@ async function startServer() {
           }
 
           case 'elements:batch_update': {
+            if (!isAuthenticated) return;
             const room = getOrCreateRoom(roomId);
+            room.updatedAt = Date.now();
             const updatedMap = new Map(msg.elements.map((e: any) => [e.id, e]));
             room.elements = room.elements.map((e) => (updatedMap.has(e.id) ? updatedMap.get(e.id) : e));
-            // Add any newly created elements that weren't present
             for (const el of msg.elements) {
               if (!room.elements.some((e) => e.id === el.id)) {
                 room.elements.push(el);
@@ -260,7 +410,9 @@ async function startServer() {
           }
 
           case 'board:sync_all': {
+            if (!isAuthenticated) return;
             const room = getOrCreateRoom(roomId);
+            room.updatedAt = Date.now();
             room.elements = msg.elements;
             if (msg.title) room.title = msg.title;
             broadcastToRoom(
@@ -296,7 +448,7 @@ async function startServer() {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`Polydesk server with WebSockets running on http://0.0.0.0:${port}`);
+    console.log(`Deskovery server running with WebSockets on http://0.0.0.0:${port}`);
   });
 }
 

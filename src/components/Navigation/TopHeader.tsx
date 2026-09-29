@@ -10,6 +10,9 @@ import {
   Radio,
   Wifi,
   WifiOff,
+  LayoutGrid,
+  Lock,
+  Globe,
 } from 'lucide-react';
 import { Collaborator } from '../../types/board';
 import { ConnectionStatus } from '../../services/multiplayer';
@@ -28,7 +31,9 @@ interface TopHeaderProps {
   isMultiplayerActive: boolean;
   connectionStatus: ConnectionStatus;
   roomId: string;
+  isProtected?: boolean;
   onOpenShareModal: () => void;
+  onNavigateToLobby?: () => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -44,7 +49,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   collaborators,
   connectionStatus,
   roomId,
+  isProtected = false,
   onOpenShareModal,
+  onNavigateToLobby,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(boardTitle);
@@ -72,19 +79,44 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     <header className="absolute top-0 left-0 right-0 h-14 bg-white/90 backdrop-blur-md border-b border-neutral-200/80 px-4 flex items-center justify-between z-30 select-none">
       {/* Zone 1: Brand wordmark & Board title */}
       <div className="flex items-center gap-3 min-w-[280px]">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white font-extrabold text-base shadow-sm tracking-tight border border-indigo-400/20">
+        {onNavigateToLobby && (
+          <button
+            onClick={onNavigateToLobby}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-neutral-700 hover:text-neutral-900 bg-neutral-100/80 hover:bg-neutral-200/80 transition-all border border-neutral-200"
+            title="Вернуться к каталогу комнат"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Комнаты</span>
+          </button>
+        )}
+
+        <div
+          onClick={onNavigateToLobby}
+          className="flex items-center gap-2 cursor-pointer group"
+          title="На главную страницу комнат"
+        >
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white font-extrabold text-base shadow-sm tracking-tight border border-indigo-400/20 group-hover:scale-105 transition-transform">
             D
           </div>
           <span className="text-base font-bold text-neutral-900 tracking-tight flex items-center gap-1.5">
             Deskovery
-            <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
-              Board
-            </span>
           </span>
         </div>
 
         <div className="h-4 w-px bg-neutral-200" />
+
+        {/* Room Security Status Badge */}
+        <div
+          className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border ${
+            isProtected
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          }`}
+          title={isProtected ? 'Эта комната защищена паролем' : 'Открытая комната'}
+        >
+          {isProtected ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+          <span>{isProtected ? 'Защищена' : 'Открытая'}</span>
+        </div>
 
         {/* Editable Board Title */}
         {isEditingTitle ? (
@@ -95,12 +127,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             autoFocus
-            className="text-sm font-medium text-neutral-900 border-b border-blue-500 outline-none px-1 bg-transparent max-w-[220px]"
+            className="text-sm font-medium text-neutral-900 border-b border-blue-500 outline-none px-1 bg-transparent max-w-[200px]"
           />
         ) : (
           <button
             onClick={() => setIsEditingTitle(true)}
-            className="text-sm font-medium text-neutral-800 hover:text-blue-600 hover:bg-neutral-100 px-2 py-1 rounded-md transition-colors truncate max-w-[220px]"
+            className="text-sm font-medium text-neutral-800 hover:text-blue-600 hover:bg-neutral-100 px-2 py-1 rounded-md transition-colors truncate max-w-[200px]"
             title="Переименовать доску"
           >
             {boardTitle}

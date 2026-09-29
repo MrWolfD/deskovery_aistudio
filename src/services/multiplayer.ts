@@ -18,6 +18,9 @@ export interface MultiplayerMessage {
   updates?: Partial<BoardElement>;
   title?: string;
   senderId?: string;
+  password?: string;
+  message?: string;
+  isProtected?: boolean;
 }
 
 export interface MultiplayerCallbacks {
@@ -29,6 +32,8 @@ export interface MultiplayerCallbacks {
   onElementDelete: (ids: string[], senderId?: string) => void;
   onElementsBatchUpdate: (elements: BoardElement[], senderId?: string) => void;
   onBoardSyncedAll: (elements: BoardElement[], title?: string, senderId?: string) => void;
+  onAuthError?: (message: string) => void;
+  onAuthSuccess?: (roomId: string, isProtected: boolean) => void;
 }
 
 const COLORS = [
@@ -51,7 +56,8 @@ const NAMES = [
 export class MultiplayerService {
   private ws: WebSocket | null = null;
   private broadcastChannel: BroadcastChannel | null = null;
-  private roomId: string = 'default';
+  private roomId: string = 'main';
+  private roomPassword: string = '';
   private callbacks: MultiplayerCallbacks;
   private currentUser: Collaborator;
   private users: Map<string, Collaborator> = new Map();
@@ -60,15 +66,16 @@ export class MultiplayerService {
   private lastCursorSentTime: number = 0;
   private connectionStatus: ConnectionStatus = 'disconnected';
 
-  constructor(callbacks: MultiplayerCallbacks, initialRoomId?: string) {
+  constructor(callbacks: MultiplayerCallbacks, initialRoomId?: string, initialPassword?: string) {
     this.callbacks = callbacks;
     this.roomId = initialRoomId || this.extractRoomIdFromUrl();
+    this.roomPassword = initialPassword || '';
     this.currentUser = this.loadOrInitUser();
 
     // Setup cross-tab BroadcastChannel fallback
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        this.broadcastChannel = new BroadcastChannel(`polydesk_room_${this.roomId}`);
+        this.broadcastChannel = new BroadcastChannel(`deskovery_room_${this.roomId}`);
         this.broadcastChannel.onmessage = (event) => {
           this.handleIncomingMessage(event.data);
         };
@@ -81,15 +88,15 @@ export class MultiplayerService {
   }
 
   private extractRoomIdFromUrl(): string {
-    if (typeof window === 'undefined') return 'default';
+    if (typeof window === 'undefined') return 'main';
     const params = new URLSearchParams(window.location.search);
-    return params.get('room') || 'default';
+    return params.get('room') || 'main';
   }
 
   private loadOrInitUser(): Collaborator {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('polydesk_current_user');
+        const saved = localStorage.getItem('deskovery_current_user') || localStorage.getItem('polydesk_current_user');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.id && parsed.name) {
@@ -114,7 +121,7 @@ export class MultiplayerService {
 
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('polydesk_current_user', JSON.stringify(newUser));
+        localStorage.setItem('deskovery_current_user', JSON.stringify(newUser));
       } catch (e) {}
     }
 
@@ -133,7 +140,7 @@ export class MultiplayerService {
     this.currentUser = { ...this.currentUser, ...updates };
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('polydesk_current_user', JSON.stringify(this.currentUser));
+        localStorage.setItem('deskovery_current_user', JSON.stringify(this.currentUser));
       } catch (e) {}
     }
     // Broadcast user update
@@ -144,6 +151,43 @@ export class MultiplayerService {
       cursor: this.currentUser.cursor,
       statusMessage: this.currentUser.statusMessage,
     });
+  }
+
+  public authenticate(password: string) {
+    this.roomPassword = password;
+    this.send({
+      type: 'join',
+      roomId: this.roomId,
+      user: this.currentUser,
+      password: this.roomPassword,
+    });
+  }
+
+  public switchRoom(newRoomId: string, password: string = '') {
+    this.roomId = newRoomId;
+    this.roomPassword = password;
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.close();
+      } catch (e) {}
+      try {
+        this.broadcastChannel = new BroadcastChannel(`deskovery_room_${newRoomId}`);
+        this.broadcastChannel.onmessage = (event) => {
+          this.handleIncomingMessage(event.data);
+        };
+      } catch (e) {}
+    }
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.send({
+        type: 'join',
+        roomId: this.roomId,
+        user: this.currentUser,
+        password: this.roomPassword,
+      });
+    } else {
+      this.connect();
+    }
   }
 
   public connect() {
@@ -162,11 +206,12 @@ export class MultiplayerService {
       this.ws.onopen = () => {
         if (this.isDestroyed) return;
         this.setConnectionStatus('connected');
-        // Join the room
+        // Join the room with password
         this.send({
           type: 'join',
           roomId: this.roomId,
           user: this.currentUser,
+          password: this.roomPassword,
         });
       };
 
@@ -181,7 +226,6 @@ export class MultiplayerService {
 
       this.ws.onclose = () => {
         if (this.isDestroyed) return;
-        // If WebSocket is closed (e.g. running on static GitHub Pages), switch to local tab sync
         this.setConnectionStatus(this.broadcastChannel ? 'local_sync' : 'disconnected');
         this.scheduleReconnect();
       };
@@ -216,7 +260,6 @@ export class MultiplayerService {
   private send(msg: MultiplayerMessage) {
     const enrichedMsg = { ...msg, roomId: this.roomId, senderId: this.currentUser.id };
 
-    // Send via WebSocket if connected
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(enrichedMsg));
@@ -225,7 +268,6 @@ export class MultiplayerService {
       }
     }
 
-    // Also mirror to BroadcastChannel so other local tabs see it instantly
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage(enrichedMsg);
@@ -235,12 +277,19 @@ export class MultiplayerService {
 
   private handleIncomingMessage(msg: MultiplayerMessage) {
     if (msg.senderId && msg.senderId === this.currentUser.id) {
-      // Ignore self-echoes from BroadcastChannel
       return;
     }
 
     switch (msg.type) {
+      case 'auth_error': {
+        this.callbacks.onAuthError?.(msg.message || 'Требуется пароль для доступа к комнате');
+        break;
+      }
+
       case 'init': {
+        if (this.callbacks.onAuthSuccess) {
+          this.callbacks.onAuthSuccess(msg.roomId || this.roomId, Boolean(msg.isProtected));
+        }
         if (Array.isArray(msg.users)) {
           this.users.clear();
           for (const u of msg.users) {
@@ -250,7 +299,7 @@ export class MultiplayerService {
           }
           this.callbacks.onUsersUpdate(Array.from(this.users.values()));
         }
-        if (Array.isArray(msg.elements) && msg.elements.length > 0) {
+        if (Array.isArray(msg.elements)) {
           this.callbacks.onBoardSyncedAll(msg.elements, msg.title, msg.senderId);
         }
         break;
