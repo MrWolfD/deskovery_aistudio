@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -14,7 +15,70 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// Respect reverse proxy headers (e.g. Caddy X-Forwarded-For)
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '50mb' }));
+
+// Security: Password Hashing & Timing-safe verification
+const SALT = process.env.PASSWORD_SALT || 'deskovery_production_salt_v1';
+
+function hashPassword(password: string): string {
+  if (!password) return '';
+  return crypto.createHash('sha256').update(password.trim() + ':' + SALT).digest('hex');
+}
+
+function verifyPasswordSafe(inputPassword: string, storedHash: string): boolean {
+  if (!storedHash) return true;
+  const inputHash = hashPassword(inputPassword);
+  if (inputHash.length !== storedHash.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(inputHash), Buffer.from(storedHash));
+}
+
+// Security: In-Memory Rate Limiting for Room Password Verification (Brute-force protection)
+interface RateLimitRecord {
+  attempts: number;
+  blockedUntil: number;
+}
+
+const loginRateLimits = new Map<string, RateLimitRecord>();
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const record = loginRateLimits.get(ip);
+  if (!record) return { allowed: true };
+
+  const now = Date.now();
+  if (record.blockedUntil > now) {
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((record.blockedUntil - now) / 1000),
+    };
+  }
+
+  // If previous block expired, reset
+  if (record.blockedUntil > 0 && record.blockedUntil <= now) {
+    loginRateLimits.delete(ip);
+    return { allowed: true };
+  }
+
+  return { allowed: true };
+}
+
+function recordFailedAttempt(ip: string) {
+  const now = Date.now();
+  const record = loginRateLimits.get(ip) || { attempts: 0, blockedUntil: 0 };
+  record.attempts += 1;
+
+  // After 5 failed attempts within 60s, block for 2 minutes
+  if (record.attempts >= 5) {
+    record.blockedUntil = now + 120 * 1000;
+  }
+  loginRateLimits.set(ip, record);
+}
+
+function recordSuccessfulAttempt(ip: string) {
+  loginRateLimits.delete(ip);
+}
 
 // In-memory room state for real-time collaboration
 interface RoomClient {
@@ -34,7 +98,7 @@ interface RoomState {
   id: string;
   title: string;
   description?: string;
-  password?: string;
+  passwordHash?: string;
   createdAt: number;
   updatedAt: number;
   elements: any[];
@@ -50,7 +114,7 @@ function initializeDefaultRooms() {
       id: 'main',
       title: 'Общая доска (Открытая)',
       description: 'Главное открытое пространство для быстрых заметок и брейнштормов',
-      password: '',
+      passwordHash: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       elements: [],
@@ -63,7 +127,7 @@ function initializeDefaultRooms() {
       id: 'team-secret',
       title: 'Командный спринт (Приватная)',
       description: 'Закрытая доска для спринтов и планов команды (Пароль по умолчанию: 1234)',
-      password: '1234',
+      passwordHash: hashPassword('1234'),
       createdAt: Date.now() - 3600000,
       updatedAt: Date.now(),
       elements: [],
@@ -74,7 +138,7 @@ function initializeDefaultRooms() {
 
 initializeDefaultRooms();
 
-function getOrCreateRoom(roomId: string, title?: string, password?: string, description?: string): RoomState {
+function getOrCreateRoom(roomId: string, title?: string, rawPassword?: string, description?: string): RoomState {
   let room = rooms.get(roomId);
   if (!room) {
     room = {
@@ -82,7 +146,7 @@ function getOrCreateRoom(roomId: string, title?: string, password?: string, desc
       elements: [],
       title: title || (roomId === 'main' ? 'Общая доска' : `Доска ${roomId}`),
       description: description || '',
-      password: password || '',
+      passwordHash: rawPassword ? hashPassword(rawPassword) : '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       clients: new Map(),
@@ -113,13 +177,13 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now(), activeRooms: rooms.size });
 });
 
-// List all rooms for Lobby (public info, passwords are NEVER exposed)
+// List all rooms for Lobby (passwords and hashes are NEVER returned)
 app.get('/api/rooms', (_req, res) => {
   const list = Array.from(rooms.values()).map((r) => ({
     id: r.id,
     title: r.title,
     description: r.description || '',
-    hasPassword: Boolean(r.password && r.password.trim().length > 0),
+    hasPassword: Boolean(r.passwordHash && r.passwordHash.length > 0),
     usersCount: r.clients.size,
     elementsCount: r.elements.length,
     createdAt: r.createdAt,
@@ -131,7 +195,7 @@ app.get('/api/rooms', (_req, res) => {
 // Create new room
 app.post('/api/rooms', (req, res) => {
   const { title, description, password, customId } = req.body;
-  if (!title || !title.trim()) {
+  if (!title || typeof title !== 'string' || !title.trim()) {
     return res.status(400).json({ error: 'Название комнаты обязательно' });
   }
 
@@ -146,9 +210,9 @@ app.post('/api/rooms', (req, res) => {
 
   const newRoom: RoomState = {
     id,
-    title: title.trim(),
-    description: description ? description.trim() : '',
-    password: password ? String(password).trim() : '',
+    title: title.trim().slice(0, 80),
+    description: description ? String(description).trim().slice(0, 300) : '',
+    passwordHash: password && String(password).trim().length > 0 ? hashPassword(String(password).trim()) : '',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     elements: [],
@@ -161,27 +225,41 @@ app.post('/api/rooms', (req, res) => {
     id: newRoom.id,
     title: newRoom.title,
     description: newRoom.description,
-    hasPassword: Boolean(newRoom.password && newRoom.password.length > 0),
+    hasPassword: Boolean(newRoom.passwordHash && newRoom.passwordHash.length > 0),
     createdAt: newRoom.createdAt,
   });
 });
 
-// Verify room password
+// Verify room password with Rate-Limiting and Timing-safe comparison
 app.post('/api/rooms/:roomId/verify', (req, res) => {
+  const clientIp = (req.ip || req.socket.remoteAddress || 'unknown') as string;
+  const rateLimitStatus = checkRateLimit(clientIp);
+
+  if (!rateLimitStatus.allowed) {
+    return res.status(429).json({
+      ok: false,
+      error: `Слишком много попыток. Подождите ${rateLimitStatus.retryAfter} сек. перед повторной попыткой.`,
+    });
+  }
+
   const room = rooms.get(req.params.roomId);
   if (!room) {
     return res.status(404).json({ ok: false, error: 'Комната не найдена' });
   }
 
-  const hasPassword = Boolean(room.password && room.password.trim().length > 0);
+  const hasPassword = Boolean(room.passwordHash && room.passwordHash.length > 0);
   if (!hasPassword) {
     return res.json({ ok: true, isProtected: false });
   }
 
   const inputPassword = req.body.password ? String(req.body.password).trim() : '';
-  if (inputPassword === room.password?.trim()) {
+  const isMatch = verifyPasswordSafe(inputPassword, room.passwordHash || '');
+
+  if (isMatch) {
+    recordSuccessfulAttempt(clientIp);
     return res.json({ ok: true, isProtected: true });
   } else {
+    recordFailedAttempt(clientIp);
     return res.status(401).json({ ok: false, error: 'Неверный пароль или PIN-код' });
   }
 });
@@ -196,7 +274,7 @@ app.get('/api/rooms/:roomId', (req, res) => {
     id: room.id,
     title: room.title,
     description: room.description || '',
-    hasPassword: Boolean(room.password && room.password.trim().length > 0),
+    hasPassword: Boolean(room.passwordHash && room.passwordHash.length > 0),
     elementsCount: room.elements.length,
     usersCount: room.clients.size,
     updatedAt: room.updatedAt,
@@ -221,13 +299,17 @@ async function startServer() {
 
   const server = http.createServer(app);
 
-  // Initialize WebSocket server
-  const wss = new WebSocketServer({ server });
+  // Initialize WebSocket server with 10MB maxPayload protection against DoS
+  const wss = new WebSocketServer({
+    server,
+    maxPayload: 10 * 1024 * 1024, // 10MB maximum message size
+  });
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket, req) => {
     let currentRoomId = 'main';
     let currentUserId: string | null = null;
     let isAuthenticated = false;
+    const clientIp = (req.socket.remoteAddress || 'unknown') as string;
 
     ws.on('message', (rawData: string) => {
       try {
@@ -242,10 +324,13 @@ async function startServer() {
             const room = getOrCreateRoom(roomId);
 
             // Check password if room is protected
-            const isProtected = Boolean(room.password && room.password.trim().length > 0);
+            const isProtected = Boolean(room.passwordHash && room.passwordHash.length > 0);
             if (isProtected) {
               const providedPassword = msg.password ? String(msg.password).trim() : '';
-              if (providedPassword !== room.password?.trim()) {
+              const isValid = verifyPasswordSafe(providedPassword, room.passwordHash || '');
+
+              if (!isValid) {
+                recordFailedAttempt(clientIp);
                 ws.send(
                   JSON.stringify({
                     type: 'auth_error',

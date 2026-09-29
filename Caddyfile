@@ -1,7 +1,16 @@
 # Caddy configuration for automatic HTTPS and WebSocket reverse-proxying
 
 {$DOMAIN:localhost} {
-    # Automatic HTTPS is enabled by default when a domain is supplied.
-    # Pass all traffic (HTTP + WebSockets) to the deskovery app container
+    # Security Headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    # Pass all HTTP and WebSocket traffic to the deskovery app container
     reverse_proxy board:3000
 }
