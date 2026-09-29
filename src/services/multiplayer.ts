@@ -19,6 +19,9 @@ export interface MultiplayerMessage {
   title?: string;
   senderId?: string;
   password?: string;
+  invite?: string;
+  inviteToken?: string;
+  teamToken?: string;
   message?: string;
   isProtected?: boolean;
 }
@@ -33,7 +36,7 @@ export interface MultiplayerCallbacks {
   onElementsBatchUpdate: (elements: BoardElement[], senderId?: string) => void;
   onBoardSyncedAll: (elements: BoardElement[], title?: string, senderId?: string) => void;
   onAuthError?: (message: string) => void;
-  onAuthSuccess?: (roomId: string, isProtected: boolean) => void;
+  onAuthSuccess?: (roomId: string, isProtected: boolean, inviteToken?: string) => void;
 }
 
 const COLORS = [
@@ -58,6 +61,8 @@ export class MultiplayerService {
   private broadcastChannel: BroadcastChannel | null = null;
   private roomId: string = 'main';
   private roomPassword: string = '';
+  private inviteToken: string = '';
+  private teamToken: string = '';
   private callbacks: MultiplayerCallbacks;
   private currentUser: Collaborator;
   private users: Map<string, Collaborator> = new Map();
@@ -66,10 +71,18 @@ export class MultiplayerService {
   private lastCursorSentTime: number = 0;
   private connectionStatus: ConnectionStatus = 'disconnected';
 
-  constructor(callbacks: MultiplayerCallbacks, initialRoomId?: string, initialPassword?: string) {
+  constructor(
+    callbacks: MultiplayerCallbacks,
+    initialRoomId?: string,
+    initialPassword?: string,
+    initialInviteToken?: string,
+    initialTeamToken?: string
+  ) {
     this.callbacks = callbacks;
     this.roomId = initialRoomId || this.extractRoomIdFromUrl();
     this.roomPassword = initialPassword || '';
+    this.inviteToken = initialInviteToken || this.extractInviteTokenFromUrl();
+    this.teamToken = initialTeamToken || this.loadTeamToken();
     this.currentUser = this.loadOrInitUser();
 
     // Setup cross-tab BroadcastChannel fallback
@@ -91,6 +104,25 @@ export class MultiplayerService {
     if (typeof window === 'undefined') return 'main';
     const params = new URLSearchParams(window.location.search);
     return params.get('room') || 'main';
+  }
+
+  private extractInviteTokenFromUrl(): string {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('invite') || '';
+  }
+
+  private loadTeamToken(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+      return (
+        localStorage.getItem('deskovery_team_token') ||
+        sessionStorage.getItem('deskovery_team_token') ||
+        ''
+      );
+    } catch (e) {
+      return '';
+    }
   }
 
   private loadOrInitUser(): Collaborator {
@@ -136,6 +168,18 @@ export class MultiplayerService {
     return this.roomId;
   }
 
+  public getInviteToken(): string {
+    return this.inviteToken;
+  }
+
+  public setInviteToken(token: string) {
+    this.inviteToken = token;
+  }
+
+  public setTeamToken(token: string) {
+    this.teamToken = token;
+  }
+
   public updateCurrentUser(updates: Partial<Collaborator>) {
     this.currentUser = { ...this.currentUser, ...updates };
     if (typeof window !== 'undefined') {
@@ -160,12 +204,22 @@ export class MultiplayerService {
       roomId: this.roomId,
       user: this.currentUser,
       password: this.roomPassword,
+      invite: this.inviteToken,
+      teamToken: this.teamToken,
     });
   }
 
-  public switchRoom(newRoomId: string, password: string = '') {
+  public switchRoom(
+    newRoomId: string,
+    password: string = '',
+    inviteToken: string = '',
+    teamToken: string = ''
+  ) {
     this.roomId = newRoomId;
     this.roomPassword = password;
+    this.inviteToken = inviteToken;
+    if (teamToken) this.teamToken = teamToken;
+
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.close();
@@ -184,6 +238,8 @@ export class MultiplayerService {
         roomId: this.roomId,
         user: this.currentUser,
         password: this.roomPassword,
+        invite: this.inviteToken,
+        teamToken: this.teamToken,
       });
     } else {
       this.connect();
@@ -206,12 +262,14 @@ export class MultiplayerService {
       this.ws.onopen = () => {
         if (this.isDestroyed) return;
         this.setConnectionStatus('connected');
-        // Join the room with password
+        // Join the room with password, invite, and teamToken
         this.send({
           type: 'join',
           roomId: this.roomId,
           user: this.currentUser,
           password: this.roomPassword,
+          invite: this.inviteToken,
+          teamToken: this.teamToken,
         });
       };
 
@@ -287,8 +345,11 @@ export class MultiplayerService {
       }
 
       case 'init': {
+        if (msg.inviteToken) {
+          this.inviteToken = msg.inviteToken;
+        }
         if (this.callbacks.onAuthSuccess) {
-          this.callbacks.onAuthSuccess(msg.roomId || this.roomId, Boolean(msg.isProtected));
+          this.callbacks.onAuthSuccess(msg.roomId || this.roomId, Boolean(msg.isProtected), msg.inviteToken);
         }
         if (Array.isArray(msg.users)) {
           this.users.clear();

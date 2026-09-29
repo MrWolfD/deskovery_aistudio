@@ -22,6 +22,7 @@ app.use(express.json({ limit: '50mb' }));
 
 // Security: Password Hashing & Timing-safe verification
 const SALT = process.env.PASSWORD_SALT || 'deskovery_production_salt_v1';
+const TEAM_PASSWORD = process.env.TEAM_PASSWORD || 'deskovery2026';
 
 function hashPassword(password: string): string {
   if (!password) return '';
@@ -35,7 +36,33 @@ function verifyPasswordSafe(inputPassword: string, storedHash: string): boolean 
   return crypto.timingSafeEqual(Buffer.from(inputHash), Buffer.from(storedHash));
 }
 
-// Security: In-Memory Rate Limiting for Room Password Verification (Brute-force protection)
+function generateInviteToken(): string {
+  return crypto.randomBytes(12).toString('hex');
+}
+
+// In-Memory Team Session Tokens
+const validTeamTokens = new Set<string>();
+
+function createTeamToken(): string {
+  const token = 'team_' + crypto.randomBytes(24).toString('hex');
+  validTeamTokens.add(token);
+  return token;
+}
+
+function isTeamAuthenticated(req: express.Request): boolean {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (validTeamTokens.has(token)) return true;
+  }
+  const customHeader = req.headers['x-team-token'] as string;
+  if (customHeader && validTeamTokens.has(customHeader.trim())) {
+    return true;
+  }
+  return false;
+}
+
+// Security: In-Memory Rate Limiting for Login & Verification (Brute-force protection)
 interface RateLimitRecord {
   attempts: number;
   blockedUntil: number;
@@ -55,7 +82,6 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
     };
   }
 
-  // If previous block expired, reset
   if (record.blockedUntil > 0 && record.blockedUntil <= now) {
     loginRateLimits.delete(ip);
     return { allowed: true };
@@ -69,7 +95,6 @@ function recordFailedAttempt(ip: string) {
   const record = loginRateLimits.get(ip) || { attempts: 0, blockedUntil: 0 };
   record.attempts += 1;
 
-  // After 5 failed attempts within 60s, block for 2 minutes
   if (record.attempts >= 5) {
     record.blockedUntil = now + 120 * 1000;
   }
@@ -99,6 +124,7 @@ interface RoomState {
   title: string;
   description?: string;
   passwordHash?: string;
+  inviteToken: string; // Secret invitation link token
   createdAt: number;
   updatedAt: number;
   elements: any[];
@@ -112,9 +138,10 @@ function initializeDefaultRooms() {
   if (!rooms.has('main')) {
     rooms.set('main', {
       id: 'main',
-      title: 'Общая доска (Открытая)',
+      title: 'Общая доска команды',
       description: 'Главное открытое пространство для быстрых заметок и брейнштормов',
       passwordHash: '',
+      inviteToken: 'public-main-invite',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       elements: [],
@@ -122,12 +149,13 @@ function initializeDefaultRooms() {
     });
   }
 
-  if (!rooms.has('team-secret')) {
-    rooms.set('team-secret', {
-      id: 'team-secret',
+  if (!rooms.has('sprint-planning')) {
+    rooms.set('sprint-planning', {
+      id: 'sprint-planning',
       title: 'Командный спринт (Приватная)',
       description: 'Закрытая доска для спринтов и планов команды (Пароль по умолчанию: 1234)',
       passwordHash: hashPassword('1234'),
+      inviteToken: 'sprint-secret-invite-token',
       createdAt: Date.now() - 3600000,
       updatedAt: Date.now(),
       elements: [],
@@ -144,9 +172,10 @@ function getOrCreateRoom(roomId: string, title?: string, rawPassword?: string, d
     room = {
       id: roomId,
       elements: [],
-      title: title || (roomId === 'main' ? 'Общая доска' : `Доска ${roomId}`),
+      title: title || (roomId === 'main' ? 'Общая доска команды' : `Доска ${roomId}`),
       description: description || '',
       passwordHash: rawPassword ? hashPassword(rawPassword) : '',
+      inviteToken: generateInviteToken(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       clients: new Map(),
@@ -177,8 +206,54 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: Date.now(), activeRooms: rooms.size });
 });
 
-// List all rooms for Lobby (passwords and hashes are NEVER returned)
-app.get('/api/rooms', (_req, res) => {
+// Team Authentication Endpoints
+app.post('/api/auth/team-login', (req, res) => {
+  const clientIp = (req.ip || req.socket.remoteAddress || 'unknown') as string;
+  const rateLimitStatus = checkRateLimit(clientIp);
+
+  if (!rateLimitStatus.allowed) {
+    return res.status(429).json({
+      ok: false,
+      error: `Слишком много попыток. Подождите ${rateLimitStatus.retryAfter} сек. перед повторной попыткой.`,
+    });
+  }
+
+  const { password } = req.body;
+  const inputPassword = password ? String(password).trim() : '';
+
+  if (verifyPasswordSafe(inputPassword, hashPassword(TEAM_PASSWORD))) {
+    recordSuccessfulAttempt(clientIp);
+    const token = createTeamToken();
+    return res.json({ ok: true, token });
+  } else {
+    recordFailedAttempt(clientIp);
+    return res.status(401).json({ ok: false, error: 'Неверный командный пароль' });
+  }
+});
+
+app.get('/api/auth/team-verify', (req, res) => {
+  const authenticated = isTeamAuthenticated(req);
+  res.json({ ok: authenticated });
+});
+
+app.post('/api/auth/team-logout', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    validTeamTokens.delete(token);
+  }
+  res.json({ ok: true });
+});
+
+// List all rooms for Lobby — Protected for Team Members only!
+app.get('/api/rooms', (req, res) => {
+  if (!isTeamAuthenticated(req)) {
+    return res.status(401).json({
+      error: 'Требуется авторизация в командном пространстве',
+      needsTeamAuth: true,
+    });
+  }
+
   const list = Array.from(rooms.values()).map((r) => ({
     id: r.id,
     title: r.title,
@@ -192,8 +267,15 @@ app.get('/api/rooms', (_req, res) => {
   res.json({ rooms: list });
 });
 
-// Create new room
+// Create new room — Protected for Team Members only!
 app.post('/api/rooms', (req, res) => {
+  if (!isTeamAuthenticated(req)) {
+    return res.status(401).json({
+      error: 'Создание новых досок доступно только авторизованным участникам команды',
+      needsTeamAuth: true,
+    });
+  }
+
   const { title, description, password, customId } = req.body;
   if (!title || typeof title !== 'string' || !title.trim()) {
     return res.status(400).json({ error: 'Название комнаты обязательно' });
@@ -213,6 +295,7 @@ app.post('/api/rooms', (req, res) => {
     title: title.trim().slice(0, 80),
     description: description ? String(description).trim().slice(0, 300) : '',
     passwordHash: password && String(password).trim().length > 0 ? hashPassword(String(password).trim()) : '',
+    inviteToken: generateInviteToken(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     elements: [],
@@ -226,11 +309,12 @@ app.post('/api/rooms', (req, res) => {
     title: newRoom.title,
     description: newRoom.description,
     hasPassword: Boolean(newRoom.passwordHash && newRoom.passwordHash.length > 0),
+    inviteToken: newRoom.inviteToken,
     createdAt: newRoom.createdAt,
   });
 });
 
-// Verify room password with Rate-Limiting and Timing-safe comparison
+// Verify room password or secret invite link
 app.post('/api/rooms/:roomId/verify', (req, res) => {
   const clientIp = (req.ip || req.socket.remoteAddress || 'unknown') as string;
   const rateLimitStatus = checkRateLimit(clientIp);
@@ -249,19 +333,51 @@ app.post('/api/rooms/:roomId/verify', (req, res) => {
 
   const hasPassword = Boolean(room.passwordHash && room.passwordHash.length > 0);
   if (!hasPassword) {
-    return res.json({ ok: true, isProtected: false });
+    return res.json({ ok: true, isProtected: false, inviteToken: room.inviteToken });
   }
 
+  // 1. Check Secret Invite Token (for friends / guests)
+  const inputInvite = req.body.invite ? String(req.body.invite).trim() : '';
+  if (inputInvite && inputInvite === room.inviteToken) {
+    recordSuccessfulAttempt(clientIp);
+    return res.json({
+      ok: true,
+      isProtected: true,
+      authenticatedByInvite: true,
+      inviteToken: room.inviteToken,
+    });
+  }
+
+  // 2. Check Room Password
   const inputPassword = req.body.password ? String(req.body.password).trim() : '';
   const isMatch = verifyPasswordSafe(inputPassword, room.passwordHash || '');
 
   if (isMatch) {
     recordSuccessfulAttempt(clientIp);
-    return res.json({ ok: true, isProtected: true });
+    return res.json({
+      ok: true,
+      isProtected: true,
+      inviteToken: room.inviteToken,
+    });
   } else {
     recordFailedAttempt(clientIp);
-    return res.status(401).json({ ok: false, error: 'Неверный пароль или PIN-код' });
+    return res.status(401).json({ ok: false, error: 'Неверный пароль или недействительная ссылка-приглашение' });
   }
+});
+
+// Rotate secret invite link (revoke old invite and create a fresh one)
+app.post('/api/rooms/:roomId/rotate-invite', (req, res) => {
+  if (!isTeamAuthenticated(req)) {
+    return res.status(401).json({ error: 'Только участники команды могут обновлять ссылки-приглашения' });
+  }
+
+  const room = rooms.get(req.params.roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Комната не найдена' });
+  }
+
+  room.inviteToken = generateInviteToken();
+  res.json({ ok: true, inviteToken: room.inviteToken });
 });
 
 // Get single room details
@@ -323,19 +439,24 @@ async function startServer() {
             currentUserId = uid;
             const room = getOrCreateRoom(roomId);
 
-            // Check password if room is protected
+            // Check security if room is protected
             const isProtected = Boolean(room.passwordHash && room.passwordHash.length > 0);
             if (isProtected) {
+              const providedInvite = msg.invite ? String(msg.invite).trim() : '';
               const providedPassword = msg.password ? String(msg.password).trim() : '';
-              const isValid = verifyPasswordSafe(providedPassword, room.passwordHash || '');
+              const providedTeamToken = msg.teamToken ? String(msg.teamToken).trim() : '';
 
-              if (!isValid) {
+              const isTeamMember = providedTeamToken && validTeamTokens.has(providedTeamToken);
+              const isInviteValid = providedInvite && providedInvite === room.inviteToken;
+              const isPasswordValid = verifyPasswordSafe(providedPassword, room.passwordHash || '');
+
+              if (!isTeamMember && !isInviteValid && !isPasswordValid) {
                 recordFailedAttempt(clientIp);
                 ws.send(
                   JSON.stringify({
                     type: 'auth_error',
                     roomId,
-                    message: 'Для доступа к этой комнате требуется верный пароль или PIN-код',
+                    message: 'Для доступа к этой комнате требуется верный пароль или ссылка-приглашение',
                   })
                 );
                 return;
@@ -364,6 +485,7 @@ async function startServer() {
                 type: 'init',
                 roomId,
                 isProtected,
+                inviteToken: room.inviteToken,
                 elements: room.elements,
                 title: room.title,
                 users: currentUsers,

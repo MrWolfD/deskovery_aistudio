@@ -28,6 +28,7 @@ import { ShareModal } from './components/Modals/ShareModal';
 import { MediaUploadModal } from './components/Modals/MediaUploadModal';
 import { MultiplayerService, ConnectionStatus } from './services/multiplayer';
 import { LobbyPage } from './components/Lobby/LobbyPage';
+import { LandingGate } from './components/Auth/LandingGate';
 
 const STORAGE_KEY = 'deskovery_board_data_v1';
 const LEGACY_STORAGE_KEY = 'polydesk_board_data_v3';
@@ -87,13 +88,31 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isMediaUploadOpen, setIsMediaUploadOpen] = useState(false);
 
-  // View Mode: 'lobby' or 'board'
-  const [currentView, setCurrentView] = useState<'lobby' | 'board'>(() => {
+  // Team Token & Access Gate
+  const [teamToken, setTeamToken] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        localStorage.getItem('deskovery_team_token') ||
+        sessionStorage.getItem('deskovery_team_token') ||
+        ''
+      );
+    }
+    return '';
+  });
+
+  // View Mode: 'gate' (Landing/Login) | 'lobby' (Team Rooms Catalog) | 'board' (Active Board)
+  const [currentView, setCurrentView] = useState<'gate' | 'lobby' | 'board'>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search);
-      return p.get('room') ? 'board' : 'lobby';
+      // Direct room link (e.g. ?room=xyz) opens board directly
+      if (p.get('room')) return 'board';
+      // Otherwise: if team is logged in -> lobby, else -> gate
+      const saved =
+        localStorage.getItem('deskovery_team_token') ||
+        sessionStorage.getItem('deskovery_team_token');
+      return saved ? 'lobby' : 'gate';
     }
-    return 'lobby';
+    return 'gate';
   });
 
   // Real-time Multiplayer & Room State
@@ -115,6 +134,13 @@ export default function App() {
     return '';
   });
   const [isCurrentRoomProtected, setIsCurrentRoomProtected] = useState<boolean>(false);
+  const [inviteToken, setInviteToken] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('invite') || '';
+    }
+    return '';
+  });
   const [lobbyError, setLobbyError] = useState<string | null>(null);
 
   const [currentUser, setCurrentUser] = useState<Collaborator>(() => ({
@@ -127,34 +153,116 @@ export default function App() {
   }));
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
 
-  // Navigation handlers
-  const handleSelectRoom = useCallback((targetRoomId: string, password?: string) => {
-    setRoomId(targetRoomId);
-    setRoomPassword(password || '');
-    setLobbyError(null);
-    setCurrentView('board');
-
-    // Update browser URL
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', targetRoomId);
-      window.history.pushState({}, '', url.toString());
+  // Team Login & Logout handlers
+  const handleSuccessLogin = useCallback((token: string, remember: boolean) => {
+    setTeamToken(token);
+    if (remember) {
+      localStorage.setItem('deskovery_team_token', token);
+    } else {
+      sessionStorage.setItem('deskovery_team_token', token);
     }
-
     if (multiplayerServiceRef.current) {
-      multiplayerServiceRef.current.switchRoom(targetRoomId, password || '');
+      multiplayerServiceRef.current.setTeamToken(token);
     }
+    setCurrentView('lobby');
   }, []);
 
+  const handleLogout = useCallback(() => {
+    try {
+      if (teamToken) {
+        fetch('/api/auth/team-logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${teamToken}` },
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    localStorage.removeItem('deskovery_team_token');
+    sessionStorage.removeItem('deskovery_team_token');
+    setTeamToken('');
+    if (multiplayerServiceRef.current) {
+      multiplayerServiceRef.current.setTeamToken('');
+    }
+    setCurrentView('gate');
+  }, [teamToken]);
+
+  // Rotate secret invite token for room
+  const handleRotateInvite = useCallback(async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (teamToken) headers['Authorization'] = `Bearer ${teamToken}`;
+
+      const res = await fetch(`/api/rooms/${roomId}/rotate-invite`, {
+        method: 'POST',
+        headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.inviteToken) {
+          setInviteToken(data.inviteToken);
+          multiplayerServiceRef.current?.setInviteToken(data.inviteToken);
+          return data.inviteToken;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to rotate invite token:', e);
+    }
+  }, [roomId, teamToken]);
+
+  // Navigation handlers
+  const handleSelectRoom = useCallback(
+    (targetRoomId: string, password?: string, initialInvite?: string) => {
+      setRoomId(targetRoomId);
+      setRoomPassword(password || '');
+      setInviteToken(initialInvite || '');
+      setLobbyError(null);
+      setCurrentView('board');
+
+      // Update browser URL
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('room', targetRoomId);
+        if (initialInvite) {
+          url.searchParams.set('invite', initialInvite);
+        } else {
+          url.searchParams.delete('invite');
+        }
+        window.history.pushState({}, '', url.toString());
+      }
+
+      if (multiplayerServiceRef.current) {
+        multiplayerServiceRef.current.switchRoom(
+          targetRoomId,
+          password || '',
+          initialInvite || '',
+          teamToken
+        );
+      }
+    },
+    [teamToken]
+  );
+
+  const handleEnterDirectRoom = useCallback(
+    (targetRoomId: string) => {
+      handleSelectRoom(targetRoomId);
+    },
+    [handleSelectRoom]
+  );
+
   const handleNavigateToLobby = useCallback(() => {
-    setCurrentView('lobby');
+    if (!teamToken) {
+      setCurrentView('gate');
+    } else {
+      setCurrentView('lobby');
+    }
     setLobbyError(null);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.delete('room');
+      url.searchParams.delete('invite');
       window.history.pushState({}, '', url.pathname);
     }
-  }, []);
+  }, [teamToken]);
 
   // Connect to Multiplayer Room
   useEffect(() => {
@@ -223,12 +331,17 @@ export default function App() {
           setLobbyError(errMsg);
           setCurrentView('lobby');
         },
-        onAuthSuccess: (_rId, isProtected) => {
+        onAuthSuccess: (_rId, isProtected, invToken) => {
           setIsCurrentRoomProtected(isProtected);
+          if (invToken) {
+            setInviteToken(invToken);
+          }
         },
       },
       roomId,
-      roomPassword
+      roomPassword,
+      inviteToken,
+      teamToken
     );
 
     multiplayerServiceRef.current = service;
@@ -237,7 +350,7 @@ export default function App() {
     return () => {
       service.destroy();
     };
-  }, [roomId, roomPassword, currentView]);
+  }, [roomId, roomPassword, inviteToken, teamToken, currentView]);
 
   // Auto-save to LocalStorage
   useEffect(() => {
@@ -1079,8 +1192,24 @@ export default function App() {
     };
   }, [selectedElements, viewport]);
 
+  if (currentView === 'gate') {
+    return (
+      <LandingGate
+        onSuccessLogin={handleSuccessLogin}
+        onEnterDirectRoom={handleEnterDirectRoom}
+      />
+    );
+  }
+
   if (currentView === 'lobby') {
-    return <LobbyPage onSelectRoom={handleSelectRoom} initialError={lobbyError} />;
+    return (
+      <LobbyPage
+        onSelectRoom={handleSelectRoom}
+        initialError={lobbyError}
+        teamToken={teamToken}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   return (
@@ -1230,6 +1359,9 @@ export default function App() {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         roomId={roomId}
+        isProtected={isCurrentRoomProtected}
+        inviteToken={inviteToken}
+        onRotateInvite={handleRotateInvite}
         currentUser={currentUser}
         collaborators={collaborators}
         connectionStatus={connectionStatus}

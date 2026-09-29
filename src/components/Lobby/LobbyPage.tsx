@@ -13,7 +13,8 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
-  FolderLock
+  FolderLock,
+  LogOut,
 } from 'lucide-react';
 
 export interface RoomSummary {
@@ -28,11 +29,18 @@ export interface RoomSummary {
 }
 
 interface LobbyPageProps {
-  onSelectRoom: (roomId: string, password?: string) => void;
+  onSelectRoom: (roomId: string, password?: string, inviteToken?: string) => void;
   initialError?: string | null;
+  teamToken?: string;
+  onLogout?: () => void;
 }
 
-export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError }) => {
+export const LobbyPage: React.FC<LobbyPageProps> = ({
+  onSelectRoom,
+  initialError,
+  teamToken,
+  onLogout,
+}) => {
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,7 +69,17 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
   const fetchRooms = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/rooms');
+      const headers: Record<string, string> = {};
+      if (teamToken) {
+        headers['Authorization'] = `Bearer ${teamToken}`;
+      }
+
+      const res = await fetch('/api/rooms', { headers });
+      if (res.status === 401 && onLogout) {
+        onLogout();
+        return;
+      }
+
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.rooms)) {
@@ -74,7 +92,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
       setRooms([
         {
           id: 'main',
-          title: 'Общая доска (Открытая)',
+          title: 'Общая доска команды',
           description: 'Главное открытое пространство для заметок и брейнштормов',
           hasPassword: false,
           usersCount: 1,
@@ -83,7 +101,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
           updatedAt: Date.now(),
         },
         {
-          id: 'team-secret',
+          id: 'sprint-planning',
           title: 'Командный спринт (Приватная)',
           description: 'Закрытая доска для спринтов и планов команды (Пароль: 1234)',
           hasPassword: true,
@@ -163,7 +181,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
         const targetRoomId = passwordModalRoom.id;
         const pass = inputPassword.trim();
         setPasswordModalRoom(null);
-        onSelectRoom(targetRoomId, pass);
+        onSelectRoom(targetRoomId, pass, data.inviteToken);
       } else {
         setPasswordError(data.error || 'Неверный пароль. Попробуйте еще раз.');
       }
@@ -190,9 +208,14 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
       setIsCreating(true);
       setCreateError(null);
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (teamToken) {
+        headers['Authorization'] = `Bearer ${teamToken}`;
+      }
+
       const res = await fetch('/api/rooms', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           title: newTitle.trim(),
           description: newDescription.trim(),
@@ -209,7 +232,11 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
           } catch (e) {}
         }
         setIsCreateModalOpen(false);
-        onSelectRoom(created.id, newIsProtected ? newPassword.trim() : undefined);
+        onSelectRoom(
+          created.id,
+          newIsProtected ? newPassword.trim() : undefined,
+          created.inviteToken
+        );
       } else {
         const errData = await res.json();
         setCreateError(errData.error || 'Не удалось создать комнату');
@@ -233,14 +260,14 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-white tracking-tight">Deskovery</span>
               <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Lobby
+                Team Workspace
               </span>
             </div>
-            <span className="text-xs text-neutral-400">Каталог интерактивных досок</span>
+            <span className="text-xs text-neutral-400">Каталог командных досок</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={fetchRooms}
             className="p-2 rounded-lg bg-neutral-800/80 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors border border-neutral-700/60"
@@ -254,11 +281,22 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({ onSelectRoom, initialError
               setIsCreateModalOpen(true);
               setCreateError(null);
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-md hover:shadow-indigo-500/25 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm shadow-md hover:shadow-indigo-500/25 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Создать комнату</span>
           </button>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700/80 text-neutral-300 hover:text-rose-400 text-xs font-medium border border-neutral-700/60 transition-colors cursor-pointer"
+              title="Выйти из пространства команды"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Выйти</span>
+            </button>
+          )}
         </div>
       </header>
 
