@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
@@ -133,7 +134,62 @@ interface RoomState {
 
 const rooms = new Map<string, RoomState>();
 
-// Pre-seed default starter rooms
+// Persistence Configuration: store all boards reliably on server disk
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'rooms.json');
+
+let saveTimer: NodeJS.Timeout | null = null;
+let isDirty = false;
+
+function ensureDataDir() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.error('[Persistence] Failed to create data directory:', err);
+  }
+}
+
+export function saveRoomsToDisk(immediate = false) {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+
+  ensureDataDir();
+
+  try {
+    const serialized = Array.from(rooms.values()).map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description || '',
+      passwordHash: r.passwordHash || '',
+      inviteToken: r.inviteToken,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      elements: r.elements,
+    }));
+
+    const tmpFile = DATA_FILE + '.tmp';
+    fs.writeFileSync(tmpFile, JSON.stringify(serialized, null, 2), 'utf8');
+    fs.renameSync(tmpFile, DATA_FILE);
+    isDirty = false;
+  } catch (err) {
+    console.error('[Persistence] Error saving rooms to disk:', err);
+  }
+}
+
+export function scheduleSaveRoomsToDisk() {
+  isDirty = true;
+  if (!saveTimer) {
+    saveTimer = setTimeout(() => {
+      saveRoomsToDisk(false);
+    }, 1500);
+  }
+}
+
+// Pre-seed default starter rooms if storage is empty
 function initializeDefaultRooms() {
   if (!rooms.has('main')) {
     rooms.set('main', {
@@ -164,7 +220,51 @@ function initializeDefaultRooms() {
   }
 }
 
-initializeDefaultRooms();
+function loadRoomsFromDisk() {
+  ensureDataDir();
+  if (fs.existsSync(DATA_FILE)) {
+    try {
+      const raw = fs.readFileSync(DATA_FILE, 'utf8');
+      const loadedList = JSON.parse(raw);
+      if (Array.isArray(loadedList) && loadedList.length > 0) {
+        rooms.clear();
+        for (const item of loadedList) {
+          if (item && item.id) {
+            rooms.set(item.id, {
+              id: item.id,
+              title: item.title || item.id,
+              description: item.description || '',
+              passwordHash: item.passwordHash || '',
+              inviteToken: item.inviteToken || generateInviteToken(),
+              createdAt: item.createdAt || Date.now(),
+              updatedAt: item.updatedAt || Date.now(),
+              elements: Array.isArray(item.elements) ? item.elements : [],
+              clients: new Map(),
+            });
+          }
+        }
+        console.log(`[Persistence] Loaded ${rooms.size} rooms successfully from ${DATA_FILE}`);
+        return;
+      }
+    } catch (err) {
+      console.error('[Persistence] Error parsing rooms.json:', err);
+    }
+  }
+
+  // Fallback to default starter rooms
+  initializeDefaultRooms();
+  saveRoomsToDisk(true);
+}
+
+// Initial load on server boot
+loadRoomsFromDisk();
+
+// Interval check to ensure dirty state is flushed to disk
+setInterval(() => {
+  if (isDirty) {
+    saveRoomsToDisk(false);
+  }
+}, 30000);
 
 function getOrCreateRoom(roomId: string, title?: string, rawPassword?: string, description?: string): RoomState {
   let room = rooms.get(roomId);
@@ -273,6 +373,19 @@ app.get('/api/rooms', (req, res) => {
 
   const list = Array.from(rooms.values()).map((r) => {
     const sizeBytes = calculateRoomSize(r);
+    // Lightweight element snapshot for interactive hover preview (first 25 elements)
+    const previewElements = r.elements.slice(0, 25).map((el: any) => ({
+      id: el.id,
+      type: el.type,
+      x: el.x,
+      y: el.y,
+      width: el.width || 100,
+      height: el.height || 100,
+      color: el.color || '#fef08a',
+      strokeColor: el.strokeColor,
+      text: el.text ? String(el.text).slice(0, 40) : undefined,
+    }));
+
     return {
       id: r.id,
       title: r.title,
@@ -282,6 +395,7 @@ app.get('/api/rooms', (req, res) => {
       elementsCount: r.elements.length,
       sizeBytes,
       sizeFormatted: formatBytes(sizeBytes),
+      previewElements,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };
@@ -313,6 +427,7 @@ app.delete('/api/rooms/:roomId', (req, res) => {
   }
 
   rooms.delete(roomId);
+  scheduleSaveRoomsToDisk();
   res.json({ ok: true, deletedRoomId: roomId });
 });
 
@@ -341,6 +456,7 @@ app.post('/api/rooms/:roomId/duplicate', (req, res) => {
   };
 
   rooms.set(newId, clonedRoom);
+  scheduleSaveRoomsToDisk();
   res.status(201).json({
     id: clonedRoom.id,
     title: clonedRoom.title,
@@ -384,6 +500,7 @@ app.post('/api/rooms', (req, res) => {
   };
 
   rooms.set(id, newRoom);
+  scheduleSaveRoomsToDisk();
 
   res.status(201).json({
     id: newRoom.id,
@@ -458,6 +575,7 @@ app.post('/api/rooms/:roomId/rotate-invite', (req, res) => {
   }
 
   room.inviteToken = generateInviteToken();
+  scheduleSaveRoomsToDisk();
   res.json({ ok: true, inviteToken: room.inviteToken });
 });
 
@@ -622,6 +740,7 @@ async function startServer() {
             } else {
               room.elements.push(el);
             }
+            scheduleSaveRoomsToDisk();
             broadcastToRoom(
               roomId,
               {
@@ -643,6 +762,7 @@ async function startServer() {
             if (idx >= 0) {
               room.elements[idx] = { ...room.elements[idx], ...updates };
             }
+            scheduleSaveRoomsToDisk();
             broadcastToRoom(
               roomId,
               {
@@ -662,6 +782,7 @@ async function startServer() {
             room.updatedAt = Date.now();
             const idsToDelete: string[] = Array.isArray(msg.ids) ? msg.ids : [msg.id];
             room.elements = room.elements.filter((e) => !idsToDelete.includes(e.id));
+            scheduleSaveRoomsToDisk();
             broadcastToRoom(
               roomId,
               {
@@ -685,6 +806,7 @@ async function startServer() {
                 room.elements.push(el);
               }
             }
+            scheduleSaveRoomsToDisk();
             broadcastToRoom(
               roomId,
               {
@@ -703,6 +825,7 @@ async function startServer() {
             room.updatedAt = Date.now();
             room.elements = msg.elements;
             if (msg.title) room.title = msg.title;
+            scheduleSaveRoomsToDisk();
             broadcastToRoom(
               roomId,
               {
@@ -734,6 +857,16 @@ async function startServer() {
       }
     });
   });
+
+  // Graceful shutdown: save state immediately when stopping container
+  const handleExit = (signal: string) => {
+    console.log(`\nReceived ${signal}. Flushing boards to disk before exit...`);
+    saveRoomsToDisk(true);
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => handleExit('SIGINT'));
+  process.on('SIGTERM', () => handleExit('SIGTERM'));
 
   server.listen(port, '0.0.0.0', () => {
     console.log(`Deskovery server running with WebSockets on http://0.0.0.0:${port}`);

@@ -11,16 +11,22 @@ import {
   Globe,
   Layers,
   KeyRound,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface LandingGateProps {
   onSuccessLogin: (token: string, remember: boolean) => void;
   onEnterDirectRoom?: (roomId: string) => void;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const LandingGate: React.FC<LandingGateProps> = ({
   onSuccessLogin,
   onEnterDirectRoom,
+  theme = 'dark',
+  onToggleTheme,
 }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -69,38 +75,75 @@ export const LandingGate: React.FC<LandingGateProps> = ({
     }
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="min-h-screen bg-neutral-900 text-neutral-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+    <div
+      className={`min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white transition-colors duration-200 ${
+        isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-neutral-50 text-neutral-900'
+      }`}
+    >
       {/* Background ambient lighting */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 -right-40 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl" />
+        <div className={`absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`} />
+        <div className={`absolute top-1/3 -right-40 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-purple-600/15' : 'bg-purple-300/20'}`} />
+        <div className={`absolute -bottom-40 left-1/3 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-blue-600/15' : 'bg-blue-300/20'}`} />
         {/* Subtle grid pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1f293710_1px,transparent_1px),linear-gradient(to_bottom,#1f293710_1px,transparent_1px)] bg-[size:32px_32px]" />
+        <div
+          className={`absolute inset-0 bg-[size:32px_32px] ${
+            isDark
+              ? 'bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)]'
+              : 'bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)]'
+          }`}
+        />
       </div>
 
       {/* Header */}
-      <header className="relative z-10 border-b border-neutral-800/80 bg-neutral-900/60 backdrop-blur-md px-6 py-4">
+      <header
+        className={`relative z-10 border-b backdrop-blur-md px-6 py-4 transition-colors ${
+          isDark
+            ? 'border-neutral-800/80 bg-neutral-900/60'
+            : 'border-neutral-200/80 bg-white/70'
+        }`}
+      >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/20">
               <Layers className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-bold tracking-tight text-white">Deskovery</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  Deskovery
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
                   Team Workspace
                 </span>
               </div>
-              <p className="text-xs text-neutral-400">Командная виртуальная доска</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Командная виртуальная доска</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-neutral-400">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">Закрытый защищенный контур</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+              <span className="hidden sm:inline">Защищенный контур</span>
+            </div>
+
+            {/* Theme Toggle Button */}
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 hover:bg-neutral-200 dark:hover:bg-neutral-700/80 text-neutral-700 dark:text-neutral-200 transition-colors border border-neutral-200 dark:border-neutral-700/60 cursor-pointer"
+                title={isDark ? 'Включить светлую тему' : 'Включить темную тему'}
+              >
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-amber-400 transition-transform hover:rotate-45" />
+                ) : (
+                  <Moon className="w-4 h-4 text-indigo-600 transition-transform hover:-rotate-12" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -109,99 +152,141 @@ export const LandingGate: React.FC<LandingGateProps> = ({
       <main className="relative z-10 max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-16">
         {/* Left Side: Product presentation */}
         <div className="flex-1 max-w-xl text-center lg:text-left space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-800/90 border border-neutral-700/80 text-xs font-medium text-neutral-300 shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border shadow-2xs ${
+              isDark
+                ? 'bg-neutral-900/90 border-neutral-800 text-neutral-300'
+                : 'bg-white border-neutral-200 text-neutral-700'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
             <span>Приватное пространство для проектов вашей команды</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+          <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
             Свобода идей.{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500 dark:from-indigo-400 dark:via-purple-300 dark:to-pink-400">
               Полный контроль
             </span>{' '}
             для вашей команды.
           </h1>
 
-          <p className="text-sm sm:text-base text-neutral-400 leading-relaxed">
+          <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
             Архитектурные схемы, канбан-спринты, брейнштормы и интерактивные заметки. Только участники с командным ключом имеют доступ к общему каталогу и созданию новых пространств.
           </p>
 
           {/* 3 Value Pillars */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="p-3.5 rounded-xl bg-neutral-800/50 border border-neutral-700/50 backdrop-blur-xs text-left">
-              <Zap className="w-4 h-4 text-amber-400 mb-2" />
-              <div className="text-xs font-semibold text-neutral-200">Real-Time</div>
-              <div className="text-[11px] text-neutral-400 mt-0.5">Синхронные курсоры и стикеры без лагов</div>
+            <div
+              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
+                isDark
+                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
+                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
+              }`}
+            >
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2">
+                <Zap className="w-4 h-4" />
+              </div>
+              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>0.05с Реакция</h2>
+              <p className="text-[11px] text-neutral-500 leading-tight">Мгновенный мультиплеер по WebSockets без лагов</p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-800/50 border border-neutral-700/50 backdrop-blur-xs text-left">
-              <Lock className="w-4 h-4 text-indigo-400 mb-2" />
-              <div className="text-xs font-semibold text-neutral-200">Приватность</div>
-              <div className="text-[11px] text-neutral-400 mt-0.5">Каталог закрыт от посторонних гостей</div>
+            <div
+              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
+                isDark
+                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
+                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
+              }`}
+            >
+              <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2">
+                <Lock className="w-4 h-4" />
+              </div>
+              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Приватность</h2>
+              <p className="text-[11px] text-neutral-500 leading-tight">Закрытый периметр на вашем собственном VPS</p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-neutral-800/50 border border-neutral-700/50 backdrop-blur-xs text-left">
-              <Globe className="w-4 h-4 text-emerald-400 mb-2" />
-              <div className="text-xs font-semibold text-neutral-200">Ссылки-гости</div>
-              <div className="text-[11px] text-neutral-400 mt-0.5">1-click доступ для друзей без пароля</div>
+            <div
+              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
+                isDark
+                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
+                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
+              }`}
+            >
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2">
+                <Globe className="w-4 h-4" />
+              </div>
+              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Гостевые ссылки</h2>
+              <p className="text-[11px] text-neutral-500 leading-tight">Доступ для клиентов в 1 клик по секретному токену</p>
             </div>
           </div>
         </div>
 
         {/* Right Side: Login Card */}
         <div className="w-full max-w-md">
-          <div className="bg-neutral-800/90 backdrop-blur-xl border border-neutral-700/80 rounded-2xl p-7 shadow-2xl shadow-black/50 ring-1 ring-white/10">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-neutral-700/60">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+          <div
+            className={`rounded-2xl border backdrop-blur-xl p-6 sm:p-8 shadow-2xl transition-all duration-200 ${
+              isDark
+                ? 'bg-neutral-900/90 border-neutral-800'
+                : 'bg-white border-neutral-200/90'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">Вход в пространство команды</h2>
-                <p className="text-xs text-neutral-400">Введите общий пароль для доступа</p>
+                <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Вход для команды</h2>
+                <p className="text-xs text-neutral-500">Введите пароль для доступа к каталогу досок</p>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2 animate-shake">
-                  <div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
+            {error && (
+              <div className="mb-5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs leading-relaxed flex items-start gap-2">
+                <span className="font-bold text-rose-500">•</span>
+                <span>{error}</span>
+              </div>
+            )}
 
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Пароль команды (Team Access Key)
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Пароль команды
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
+                  <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Введите пароль команды..."
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Введите командный пароль..."
                     autoFocus
-                    className="w-full bg-neutral-900/80 border border-neutral-700 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-mono"
+                    required
+                    className={`w-full pl-10 pr-11 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                      isDark
+                        ? 'bg-neutral-950 border-neutral-700 text-white placeholder-neutral-500'
+                        : 'bg-neutral-50 border-neutral-300 text-neutral-900 placeholder-neutral-400'
+                    }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-neutral-200"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer p-1"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex items-center gap-2 cursor-pointer text-neutral-300 select-none">
+              <div className="flex items-center justify-between text-xs pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-neutral-600 dark:text-neutral-400">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-neutral-700 text-indigo-600 focus:ring-indigo-500 bg-neutral-900"
+                    className="w-4 h-4 rounded border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                   <span>Запомнить на этом устройстве</span>
                 </label>
@@ -210,65 +295,65 @@ export const LandingGate: React.FC<LandingGateProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-md hover:shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Проверка ключа...</span>
-                  </>
+                  <span>Проверка доступа...</span>
                 ) : (
                   <>
-                    <span>Войти в рабочее пространство</span>
+                    <span>Войти в пространство</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            {/* Direct room jump for guests */}
-            <div className="mt-6 pt-4 border-t border-neutral-700/60 text-center">
-              {!showGuestDirect ? (
-                <button
-                  type="button"
-                  onClick={() => setShowGuestDirect(true)}
-                  className="text-xs text-neutral-400 hover:text-indigo-300 transition-colors underline decoration-dotted underline-offset-4"
-                >
-                  Вам прислали ссылку на отдельную доску?
-                </button>
-              ) : (
-                <form onSubmit={handleGuestSubmit} className="space-y-2 text-left animate-fade-in">
-                  <div className="text-xs text-neutral-300 font-medium">
-                    Прямой переход к комнате (для гостей):
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={guestRoomInput}
-                      onChange={(e) => setGuestRoomInput(e.target.value)}
-                      placeholder="Имя или ID комнаты..."
-                      className="flex-1 bg-neutral-900/90 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-500 outline-none focus:border-indigo-500 font-mono"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 rounded-lg text-xs font-medium text-white transition-colors"
-                    >
-                      Перейти
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
+            {/* Quick Guest Room Entry Option */}
+            {onEnterDirectRoom && (
+              <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-neutral-800/80 text-center">
+                {!showGuestDirect ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowGuestDirect(true)}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    У вас есть прямая ссылка или имя комнаты?
+                  </button>
+                ) : (
+                  <form onSubmit={handleGuestSubmit} className="space-y-2 text-left">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      Прямой вход в комнату:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={guestRoomInput}
+                        onChange={(e) => setGuestRoomInput(e.target.value)}
+                        placeholder="Например: sprint-9"
+                        className={`flex-1 px-3 py-2 rounded-xl border text-xs outline-none focus:ring-2 focus:ring-indigo-500 ${
+                          isDark
+                            ? 'bg-neutral-950 border-neutral-700 text-white'
+                            : 'bg-neutral-50 border-neutral-300 text-neutral-900'
+                        }`}
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-2 bg-neutral-800 dark:bg-neutral-700 hover:bg-neutral-700 dark:hover:bg-neutral-600 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Перейти
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-neutral-800/80 bg-neutral-900/60 backdrop-blur-md px-6 py-4 text-center text-xs text-neutral-500">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Deskovery &copy; 2026. Приватное командное пространство.</span>
-          <span className="text-neutral-400">Шифрование данных и безопасный WebSocket протокол</span>
-        </div>
+      <footer className="relative z-10 py-6 text-center text-xs text-neutral-500">
+        <p>Deskovery Private Cloud • Защищенное пространство вашей команды</p>
       </footer>
     </div>
   );

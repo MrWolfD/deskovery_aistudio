@@ -1224,6 +1224,8 @@ export default function App() {
       <LandingGate
         onSuccessLogin={handleSuccessLogin}
         onEnterDirectRoom={handleEnterDirectRoom}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }

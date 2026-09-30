@@ -33,6 +33,9 @@ RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.js ./server.js
 
+# Ensure data directory exists for persistent volume
+RUN mkdir -p /app/data
+
 # Expose app port
 EXPOSE 3000
 

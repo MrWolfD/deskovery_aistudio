@@ -12,6 +12,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - TEAM_PASSWORD=${TEAM_PASSWORD:-deskovery2026}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
 
   caddy:
     image: caddy:2-alpine
