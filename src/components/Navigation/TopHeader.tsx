@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Undo2,
   Redo2,
@@ -6,18 +6,26 @@ import {
   Share2,
   Play,
   Users,
-  Check,
-  Radio,
-  Wifi,
-  WifiOff,
-  LayoutGrid,
   Lock,
   Globe,
   Sun,
   Moon,
+  ChevronDown,
+  Pencil,
 } from 'lucide-react';
 import { Collaborator } from '../../types/board';
 import { ConnectionStatus } from '../../services/multiplayer';
+
+const USER_COLORS = [
+  { name: 'Индиго', hex: '#6366f1' },
+  { name: 'Розовый', hex: '#ec4899' },
+  { name: 'Изумруд', hex: '#10b981' },
+  { name: 'Янтарный', hex: '#f59e0b' },
+  { name: 'Фиолетовый', hex: '#8b5cf6' },
+  { name: 'Бирюзовый', hex: '#06b6d4' },
+  { name: 'Красный', hex: '#f43f5e' },
+  { name: 'Синий', hex: '#3b82f6' },
+];
 
 interface TopHeaderProps {
   boardTitle: string;
@@ -38,6 +46,8 @@ interface TopHeaderProps {
   onToggleTheme?: () => void;
   onOpenShareModal: () => void;
   onNavigateToLobby?: () => void;
+  currentUser?: Collaborator;
+  onUpdateCurrentUser?: (updates: Partial<Collaborator>) => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -58,10 +68,38 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onToggleTheme,
   onOpenShareModal,
   onNavigateToLobby,
+  currentUser,
+  onUpdateCurrentUser,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(boardTitle);
-  const [isCopied, setIsCopied] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [editName, setEditName] = useState(currentUser?.name || '');
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentUser?.name) {
+      setEditName(currentUser.name);
+    }
+  }, [currentUser?.name]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSaveUserName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editName.trim() && onUpdateCurrentUser) {
+      onUpdateCurrentUser({ name: editName.trim() });
+      setIsUserMenuOpen(false);
+    }
+  };
 
   const handleBlur = () => {
     setIsEditingTitle(false);
@@ -75,41 +113,35 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     }
   };
 
-  const handleShare = () => {
-    navigator.clipboard?.writeText(window.location.href);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
   const isDark = theme === 'dark';
 
   return (
     <header className="absolute top-0 left-0 right-0 h-14 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 px-4 flex items-center justify-between z-30 select-none transition-colors">
       {/* Zone 1: Brand wordmark & Board title */}
-      <div className="flex items-center gap-3 min-w-[280px]">
-        {onNavigateToLobby && (
+      <div className="flex items-center gap-3">
+        {onNavigateToLobby ? (
           <button
             onClick={onNavigateToLobby}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white bg-neutral-100/80 dark:bg-neutral-800/80 hover:bg-neutral-200/80 dark:hover:bg-neutral-700/80 transition-all border border-neutral-200 dark:border-neutral-700/60 cursor-pointer"
+            className="flex items-center gap-2 p-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer group"
             title="Вернуться к каталогу комнат"
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Комнаты</span>
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-extrabold text-sm shadow-xs group-hover:scale-105 transition-transform">
+              D
+            </div>
+            <span className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight hidden sm:inline">
+              Deskovery
+            </span>
           </button>
-        )}
-
-        <div
-          onClick={onNavigateToLobby}
-          className="flex items-center gap-2 cursor-pointer group"
-          title="На главную страницу комнат"
-        >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white font-extrabold text-base shadow-sm tracking-tight border border-indigo-400/20 group-hover:scale-105 transition-transform">
-            D
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-extrabold text-sm shadow-xs">
+              D
+            </div>
+            <span className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight hidden sm:inline">
+              Deskovery
+            </span>
           </div>
-          <span className="text-base font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-1.5">
-            Deskovery
-          </span>
-        </div>
+        )}
 
         <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
 
@@ -146,11 +178,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             {boardTitle}
           </button>
         )}
-
-        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Сохранено
-        </span>
       </div>
 
       {/* Zone 2: Navigation (Undo/Redo) */}
@@ -188,43 +215,90 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       </div>
 
       {/* Zone 3: Collaborators & Actions */}
-      <div className="flex items-center gap-2.5">
-        {/* Real-time sync badge */}
+      <div className="flex items-center gap-2">
+        {/* Current User Quick Name / Color Editor */}
+        {currentUser && (
+          <div className="relative" ref={userMenuRef}>
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-1.5 py-1 px-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700/80 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer group"
+              title="Нажмите, чтобы изменить имя или цвет курсора"
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-2xs group-hover:scale-105 transition-transform"
+                style={{ backgroundColor: currentUser.color }}
+              >
+                {(currentUser.name || 'U')[0].toUpperCase()}
+              </div>
+              <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 max-w-[90px] sm:max-w-[120px] truncate">
+                {currentUser.name}
+              </span>
+              <ChevronDown className="w-3 h-3 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200 transition-colors" />
+            </button>
+
+            {isUserMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-200/90 dark:border-neutral-800 z-50 flex flex-col gap-3 animate-fade-in">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider px-0.5">
+                  <span>Ваш профиль</span>
+                  <Pencil className="w-3 h-3 text-indigo-500" />
+                </div>
+
+                <form onSubmit={handleSaveUserName} className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Ваше имя..."
+                    maxLength={30}
+                    autoFocus
+                    className="flex-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-neutral-50 dark:bg-neutral-950 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    OK
+                  </button>
+                </form>
+
+                <div>
+                  <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mb-1.5 font-medium">
+                    Цвет курсора:
+                  </div>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {USER_COLORS.map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => {
+                          if (onUpdateCurrentUser) {
+                            onUpdateCurrentUser({ color: c.hex });
+                          }
+                        }}
+                        className={`w-5 h-5 rounded-md cursor-pointer transition-transform ${
+                          currentUser.color === c.hex
+                            ? 'ring-2 ring-indigo-500 scale-110 shadow-xs'
+                            : 'hover:scale-105 opacity-80 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Collaborators counter & list */}
         <button
           onClick={onOpenShareModal}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors cursor-pointer border ${
-            connectionStatus === 'connected'
-              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-              : connectionStatus === 'local_sync'
-              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
-              : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
-          }`}
-          title="Настройки совместной работы и статус подключения"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer border border-neutral-200 dark:border-neutral-700/60"
+          title="Список участников и настройки совместной работы"
         >
-          <span className="relative flex h-2 w-2">
-            {connectionStatus === 'connected' && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            )}
-            <span
-              className={`relative inline-flex rounded-full h-2 w-2 ${
-                connectionStatus === 'connected'
-                  ? 'bg-emerald-500'
-                  : connectionStatus === 'local_sync'
-                  ? 'bg-amber-500'
-                  : 'bg-rose-500'
-              }`}
-            />
-          </span>
-
-          <span className="font-semibold">
-            {connectionStatus === 'connected'
-              ? 'Онлайн'
-              : connectionStatus === 'local_sync'
-              ? 'Вкладки'
-              : 'Офлайн'}
-          </span>
-          <span className="text-neutral-400 dark:text-neutral-500">•</span>
-          <span>{collaborators.length + 1} уч.</span>
+          <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          <span>{collaborators.length + 1}</span>
         </button>
 
         {collaborators.length > 0 && (

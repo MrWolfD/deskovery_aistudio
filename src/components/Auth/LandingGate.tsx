@@ -5,10 +5,6 @@ import {
   EyeOff,
   ArrowRight,
   ShieldCheck,
-  Users,
-  Sparkles,
-  Zap,
-  Globe,
   Layers,
   KeyRound,
   Sun,
@@ -148,81 +144,10 @@ export const LandingGate: React.FC<LandingGateProps> = ({
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-16">
-        {/* Left Side: Product presentation */}
-        <div className="flex-1 max-w-xl text-center lg:text-left space-y-6">
-          <div
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border shadow-2xs ${
-              isDark
-                ? 'bg-neutral-900/90 border-neutral-800 text-neutral-300'
-                : 'bg-white border-neutral-200 text-neutral-700'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
-            <span>Приватное пространство для проектов вашей команды</span>
-          </div>
-
-          <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            Свобода идей.{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500 dark:from-indigo-400 dark:via-purple-300 dark:to-pink-400">
-              Полный контроль
-            </span>{' '}
-            для вашей команды.
-          </h1>
-
-          <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
-            Архитектурные схемы, канбан-спринты, брейнштормы и интерактивные заметки. Только участники с командным ключом имеют доступ к общему каталогу и созданию новых пространств.
-          </p>
-
-          {/* 3 Value Pillars */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div
-              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
-                isDark
-                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
-                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2">
-                <Zap className="w-4 h-4" />
-              </div>
-              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>0.05с Реакция</h2>
-              <p className="text-[11px] text-neutral-500 leading-tight">Мгновенный мультиплеер по WebSockets без лагов</p>
-            </div>
-
-            <div
-              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
-                isDark
-                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
-                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2">
-                <Lock className="w-4 h-4" />
-              </div>
-              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Приватность</h2>
-              <p className="text-[11px] text-neutral-500 leading-tight">Закрытый периметр на вашем собственном VPS</p>
-            </div>
-
-            <div
-              className={`p-3.5 rounded-xl border backdrop-blur-xs text-left transition-colors ${
-                isDark
-                  ? 'bg-neutral-900/40 border-neutral-800/80 hover:border-neutral-700'
-                  : 'bg-white/80 border-neutral-200/80 hover:border-neutral-300 shadow-2xs'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2">
-                <Globe className="w-4 h-4" />
-              </div>
-              <h2 className={`font-semibold text-xs mb-1 ${isDark ? 'text-white' : 'text-neutral-900'}`}>Гостевые ссылки</h2>
-              <p className="text-[11px] text-neutral-500 leading-tight">Доступ для клиентов в 1 клик по секретному токену</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Login Card */}
-        <div className="w-full max-w-md">
+      {/* Main Content: Clean Centered Login */}
+      <main className="relative z-10 max-w-md w-full mx-auto px-6 py-12 flex-1 flex flex-col items-center justify-center">
+        {/* Clean Login Card */}
+        <div className="w-full">
           <div
             className={`rounded-2xl border backdrop-blur-xl p-6 sm:p-8 shadow-2xl transition-all duration-200 ${
               isDark
@@ -230,13 +155,17 @@ export const LandingGate: React.FC<LandingGateProps> = ({
                 : 'bg-white border-neutral-200/90'
             }`}
           >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            <div className="flex items-center gap-3.5 mb-6">
+              <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Вход для команды</h2>
-                <p className="text-xs text-neutral-500">Введите пароль для доступа к каталогу досок</p>
+                <h1 className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  Вход в пространство
+                </h1>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Введите пароль команды для доступа к доскам
+                </p>
               </div>
             </div>
 
@@ -352,8 +281,8 @@ export const LandingGate: React.FC<LandingGateProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 py-6 text-center text-xs text-neutral-500">
-        <p>Deskovery Private Cloud • Защищенное пространство вашей команды</p>
+      <footer className="relative z-10 py-6 text-center text-xs text-neutral-400 dark:text-neutral-500">
+        <p>Deskovery Workspace</p>
       </footer>
     </div>
   );

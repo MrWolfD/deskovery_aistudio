@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   FileVideo,
   FileAudio,
@@ -10,8 +10,12 @@ import {
   Music,
   Check,
   AlertCircle,
+  HardDrive,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
-import { BoardElement, Point } from '../../types/board';
+import { BoardElement } from '../../types/board';
+import { ServerStorageStats } from '../../types/storage';
 
 interface MediaUploadModalProps {
   isOpen: boolean;
@@ -32,7 +36,33 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Server Storage Stats
+  const [storageStats, setStorageStats] = useState<ServerStorageStats | null>(null);
+  const [isLoadingStorage, setIsLoadingStorage] = useState(false);
+  const [isUploadingToServer, setIsUploadingToServer] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchStorageStats = async () => {
+    try {
+      setIsLoadingStorage(true);
+      const res = await fetch('/api/server/storage');
+      if (res.ok) {
+        const data = await res.json();
+        setStorageStats(data);
+      }
+    } catch (e) {
+      console.warn('Could not fetch server storage status:', e);
+    } finally {
+      setIsLoadingStorage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchStorageStats();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -79,15 +109,58 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalUrl = previewUrl || urlInput.trim();
+    let finalUrl = previewUrl || urlInput.trim();
     if (!finalUrl) {
       setErrorMsg('Пожалуйста, выберите файл или укажите прямую ссылку');
       return;
     }
 
-    const title = nameInput.trim() || (activeTab === 'video' ? 'Видео' : activeTab === 'audio' ? 'Аудиозапись' : 'Изображение');
+    const title =
+      nameInput.trim() ||
+      (activeTab === 'video'
+        ? 'Видео'
+        : activeTab === 'audio'
+        ? 'Аудиозапись'
+        : 'Изображение');
+
+    // If local file was selected, upload to server disk
+    if (selectedFile && previewUrl && previewUrl.startsWith('data:')) {
+      try {
+        setIsUploadingToServer(true);
+        setErrorMsg(null);
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: selectedFile.name,
+            dataUrl: previewUrl,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            finalUrl = data.url;
+          }
+          if (data.storage) {
+            setStorageStats(data.storage);
+          }
+        } else {
+          const errData = await res.json().catch(() => null);
+          if (errData && errData.error) {
+            setErrorMsg(errData.error);
+            setIsUploadingToServer(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Direct server upload fallback to DataURL:', err);
+      } finally {
+        setIsUploadingToServer(false);
+      }
+    }
 
     if (activeTab === 'video') {
       onAddMediaElement({
@@ -212,6 +285,57 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-sm">
+          {/* Server Storage Capacity Card */}
+          {storageStats && (
+            <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-slate-800/60 border border-neutral-200 dark:border-slate-700/80 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-slate-200">
+                  <HardDrive className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>Память на сервере</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-neutral-500 dark:text-slate-400 text-[11px]">
+                    Доступно:{' '}
+                    <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      {storageStats.freeFormatted}
+                    </strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={fetchStorageStats}
+                    disabled={isLoadingStorage}
+                    className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-slate-700 text-neutral-400 hover:text-neutral-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                    title="Обновить информацию о хранилище"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStorage ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Storage progress bar */}
+              <div className="space-y-1">
+                <div className="w-full h-2 rounded-full bg-neutral-200 dark:bg-slate-700 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 rounded-full ${
+                      storageStats.usagePercent >= 90
+                        ? 'bg-rose-500'
+                        : storageStats.usagePercent >= 70
+                        ? 'bg-amber-500'
+                        : 'bg-indigo-600 dark:bg-indigo-500'
+                    }`}
+                    style={{ width: `${Math.max(1, storageStats.usagePercent)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-slate-400">
+                  <span>
+                    Занято: {storageStats.usedFormatted} ({storageStats.usagePercent}%)
+                  </span>
+                  <span>Лимит: {storageStats.totalLimitFormatted}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <input
             ref={fileInputRef}
             type="file"
@@ -363,9 +487,11 @@ export const MediaUploadModal: React.FC<MediaUploadModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-xs cursor-pointer"
+              disabled={isUploadingToServer}
+              className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
             >
-              Добавить на доску
+              {isUploadingToServer && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isUploadingToServer ? 'Сохранение...' : 'Добавить на доску'}</span>
             </button>
           </div>
         </form>

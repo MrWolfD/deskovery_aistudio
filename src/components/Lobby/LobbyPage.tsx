@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ServerStorageStats } from '../../types/storage';
 import {
   Lock,
   Globe,
@@ -245,9 +246,27 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
     }
   };
 
+  const [storageStats, setStorageStats] = useState<ServerStorageStats | null>(null);
+
+  const fetchStorageStats = async () => {
+    try {
+      const res = await fetch('/api/server/storage');
+      if (res.ok) {
+        const data = await res.json();
+        setStorageStats(data);
+      }
+    } catch (e) {
+      console.warn('Failed to load storage stats:', e);
+    }
+  };
+
   useEffect(() => {
     fetchRooms();
-    const interval = setInterval(fetchRooms, 10000);
+    fetchStorageStats();
+    const interval = setInterval(() => {
+      fetchRooms();
+      fetchStorageStats();
+    }, 10000);
     return () => clearInterval(interval);
   }, [teamToken]);
 
@@ -458,8 +477,42 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
+          {storageStats && (
+            <div
+              className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                isDark
+                  ? 'bg-neutral-800/80 border-neutral-700/60 text-neutral-300'
+                  : 'bg-neutral-100 border-neutral-200 text-neutral-700'
+              }`}
+              title={`Занято: ${storageStats.usedFormatted} из ${storageStats.totalLimitFormatted} (${storageStats.usagePercent}%). Файлов медиа: ${storageStats.mediaCount + storageStats.uploadFilesCount}`}
+            >
+              <HardDrive className="w-3.5 h-3.5 text-indigo-500" />
+              <span>
+                Свободно:{' '}
+                <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  {storageStats.freeFormatted}
+                </strong>
+              </span>
+              <div className="w-12 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-700 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    storageStats.usagePercent >= 90
+                      ? 'bg-rose-500'
+                      : storageStats.usagePercent >= 70
+                      ? 'bg-amber-500'
+                      : 'bg-indigo-600 dark:bg-indigo-500'
+                  }`}
+                  style={{ width: `${Math.max(3, storageStats.usagePercent)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           <button
-            onClick={fetchRooms}
+            onClick={() => {
+              fetchRooms();
+              fetchStorageStats();
+            }}
             className={`p-2 rounded-lg transition-colors border cursor-pointer ${
               isDark
                 ? 'bg-neutral-800/80 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 border-neutral-700/60'
@@ -517,31 +570,7 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-6 md:p-8 flex flex-col gap-8">
-        {/* Hero Banner */}
-        <div
-          className={`relative overflow-hidden rounded-2xl border p-6 md:p-8 shadow-xl transition-all ${
-            isDark
-              ? 'bg-gradient-to-br from-indigo-950/40 via-neutral-900 to-neutral-900 border-indigo-500/20'
-              : 'bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/60 border-indigo-100'
-          }`}
-        >
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-300 text-xs font-medium mb-3">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-              Приватность и совместная работа
-            </div>
-            <h1 className={`text-2xl md:text-3xl font-extrabold tracking-tight mb-2 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-              Выберите доску или создайте защищенную комнату
-            </h1>
-            <p className="text-sm md:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              Открытые доски доступны для всех пользователей по ссылке, а закрытые комнаты надежно защищены
-              паролем или PIN-кодом на стороне сервера.
-            </p>
-          </div>
-        </div>
-
+      <main className="flex-1 max-w-6xl w-full mx-auto p-6 md:p-8 flex flex-col gap-6">
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           {/* Search Box */}
@@ -771,6 +800,55 @@ export const LobbyPage: React.FC<LobbyPageProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Server Storage Summary Bar */}
+        {storageStats && (
+          <div
+            className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all mt-2 ${
+              isDark
+                ? 'bg-neutral-900/60 border-neutral-800'
+                : 'bg-white border-neutral-200 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-neutral-900 dark:text-white">
+                    Память сервера для медиа
+                  </span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                    Свободно {storageStats.freeFormatted}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Использовано {storageStats.usedFormatted} из {storageStats.totalLimitFormatted} • Загружено файлов: {storageStats.uploadFilesCount + storageStats.mediaCount}
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full sm:w-56 flex flex-col gap-1.5 shrink-0">
+              <div className="flex items-center justify-between text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                <span>Заполнение диска</span>
+                <span>{storageStats.usagePercent}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    storageStats.usagePercent >= 90
+                      ? 'bg-rose-500'
+                      : storageStats.usagePercent >= 70
+                      ? 'bg-amber-500'
+                      : 'bg-indigo-600 dark:bg-indigo-500'
+                  }`}
+                  style={{ width: `${Math.max(2, storageStats.usagePercent)}%` }}
+                />
+              </div>
+            </div>
           </div>
         )}
       </main>

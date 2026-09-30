@@ -26,6 +26,7 @@ import { ShortcutsModal } from './components/Modals/ShortcutsModal';
 import { PresentationModal } from './components/Modals/PresentationModal';
 import { ShareModal } from './components/Modals/ShareModal';
 import { MediaUploadModal } from './components/Modals/MediaUploadModal';
+import { UserJoinModal } from './components/Modals/UserJoinModal';
 import { MultiplayerService, ConnectionStatus } from './services/multiplayer';
 import { LobbyPage } from './components/Lobby/LobbyPage';
 import { LandingGate } from './components/Auth/LandingGate';
@@ -170,15 +171,32 @@ export default function App() {
   });
   const [lobbyError, setLobbyError] = useState<string | null>(null);
 
-  const [currentUser, setCurrentUser] = useState<Collaborator>(() => ({
-    id: `user-${Date.now()}`,
-    name: 'Вы',
-    color: '#6366f1',
-    role: 'Коллаборатор',
-    cursor: { x: 0, y: 0 },
-    isOnline: true,
-  }));
+  const [currentUser, setCurrentUser] = useState<Collaborator>(() => {
+    let name = 'Участник';
+    let color = '#6366f1';
+    if (typeof window !== 'undefined') {
+      try {
+        const saved =
+          localStorage.getItem('deskovery_current_user') ||
+          localStorage.getItem('polydesk_current_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.name) name = parsed.name;
+          if (parsed && parsed.color) color = parsed.color;
+        }
+      } catch (e) {}
+    }
+    return {
+      id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name,
+      color,
+      role: 'Коллаборатор',
+      cursor: { x: 0, y: 0 },
+      isOnline: true,
+    };
+  });
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [isUserJoinModalOpen, setIsUserJoinModalOpen] = useState(false);
 
   // Team Login & Logout handlers
   const handleSuccessLogin = useCallback((token: string, remember: boolean) => {
@@ -894,14 +912,44 @@ export default function App() {
     [selectedIds]
   );
 
-  // Update Current User in Room
+  // Update Current User in Room with persistence
   const handleUpdateCurrentUser = useCallback(
     (updates: Partial<Collaborator>) => {
       multiplayerServiceRef.current?.updateCurrentUser(updates);
-      setCurrentUser((prev) => ({ ...prev, ...updates }));
+      setCurrentUser((prev) => {
+        const next = { ...prev, ...updates };
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('deskovery_current_user', JSON.stringify(next));
+          } catch (e) {}
+        }
+        return next;
+      });
     },
     []
   );
+
+  const handleSaveUserFromModal = useCallback(
+    (name: string, color: string, rememberAlways: boolean) => {
+      handleUpdateCurrentUser({ name, color });
+      if (rememberAlways && typeof window !== 'undefined') {
+        localStorage.setItem('deskovery_skip_join_prompt', 'true');
+      }
+    },
+    [handleUpdateCurrentUser]
+  );
+
+  // Automatically prompt for user name when entering board if not remembered or not shown yet
+  useEffect(() => {
+    if (currentView === 'board') {
+      const skipPrompt = localStorage.getItem('deskovery_skip_join_prompt') === 'true';
+      const shownForRoom = sessionStorage.getItem(`deskovery_prompt_shown_${roomId}`);
+      if (!skipPrompt && !shownForRoom) {
+        setIsUserJoinModalOpen(true);
+        sessionStorage.setItem(`deskovery_prompt_shown_${roomId}`, 'true');
+      }
+    }
+  }, [currentView, roomId]);
 
   // Switch / Join Room
   const handleSwitchRoom = useCallback((newRoomId: string) => {
@@ -1269,6 +1317,8 @@ export default function App() {
         onToggleTheme={toggleTheme}
         onNavigateToLobby={handleNavigateToLobby}
         onOpenShareModal={() => setIsShareModalOpen(true)}
+        currentUser={currentUser}
+        onUpdateCurrentUser={handleUpdateCurrentUser}
       />
 
       {/* Main Infinite Canvas */}
@@ -1412,6 +1462,16 @@ export default function App() {
         isOpen={isMediaUploadOpen}
         onClose={() => setIsMediaUploadOpen(false)}
         onAddMediaElement={handleAddMediaElement}
+      />
+
+      {/* User Join / Name Identification Modal */}
+      <UserJoinModal
+        isOpen={isUserJoinModalOpen}
+        onClose={() => setIsUserJoinModalOpen(false)}
+        currentUser={currentUser}
+        onSaveUser={handleSaveUserFromModal}
+        boardTitle={boardTitle}
+        theme={theme}
       />
     </div>
   );

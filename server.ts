@@ -141,6 +141,9 @@ const DATA_FILE = path.join(DATA_DIR, 'rooms.json');
 let saveTimer: NodeJS.Timeout | null = null;
 let isDirty = false;
 
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const DEFAULT_STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024; // 1 GB storage limit
+
 function ensureDataDir() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -149,6 +152,84 @@ function ensureDataDir() {
   } catch (err) {
     console.error('[Persistence] Failed to create data directory:', err);
   }
+}
+
+function ensureUploadsDir() {
+  ensureDataDir();
+  try {
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.error('[Uploads] Failed to create uploads directory:', err);
+  }
+}
+
+function getDirectorySizeBytes(dirPath: string): number {
+  let total = 0;
+  try {
+    if (!fs.existsSync(dirPath)) return 0;
+    const items = fs.readdirSync(dirPath);
+    for (const item of items) {
+      const fullPath = path.join(dirPath, item);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        total += getDirectorySizeBytes(fullPath);
+      } else {
+        total += stat.size;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return total;
+}
+
+export function getStorageStats() {
+  ensureUploadsDir();
+  const uploadsBytes = getDirectorySizeBytes(UPLOADS_DIR);
+  let dataFileBytes = 0;
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      dataFileBytes = fs.statSync(DATA_FILE).size;
+    }
+  } catch (e) {}
+
+  const usedBytes = uploadsBytes + dataFileBytes;
+  const totalLimitBytes = DEFAULT_STORAGE_LIMIT_BYTES;
+  const freeBytes = Math.max(0, totalLimitBytes - usedBytes);
+  const usagePercent = Math.min(100, Math.round((usedBytes / totalLimitBytes) * 100));
+
+  let mediaCount = 0;
+  for (const r of rooms.values()) {
+    if (Array.isArray(r.elements)) {
+      for (const el of r.elements) {
+        if (el.type === 'video' || el.type === 'audio' || el.type === 'image') {
+          mediaCount++;
+        }
+      }
+    }
+  }
+
+  let uploadFilesCount = 0;
+  try {
+    if (fs.existsSync(UPLOADS_DIR)) {
+      uploadFilesCount = fs.readdirSync(UPLOADS_DIR).length;
+    }
+  } catch (e) {}
+
+  return {
+    totalLimitBytes,
+    totalLimitFormatted: formatBytes(totalLimitBytes),
+    usedBytes,
+    usedFormatted: formatBytes(usedBytes),
+    freeBytes,
+    freeFormatted: formatBytes(freeBytes),
+    usagePercent,
+    mediaCount,
+    uploadFilesCount,
+    roomsCount: rooms.size,
+  };
 }
 
 export function saveRoomsToDisk(immediate = false) {
@@ -243,6 +324,9 @@ function loadRoomsFromDisk() {
             });
           }
         }
+        if (!rooms.has('main')) {
+          initializeDefaultRooms();
+        }
         console.log(`[Persistence] Loaded ${rooms.size} rooms successfully from ${DATA_FILE}`);
         return;
       }
@@ -281,6 +365,7 @@ function getOrCreateRoom(roomId: string, title?: string, rawPassword?: string, d
       clients: new Map(),
     };
     rooms.set(roomId, room);
+    scheduleSaveRoomsToDisk();
   }
   return room;
 }
@@ -353,7 +438,7 @@ function calculateRoomSize(r: RoomState): number {
   }
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 Б';
   const k = 1024;
   const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
@@ -594,6 +679,70 @@ app.get('/api/rooms/:roomId', (req, res) => {
     usersCount: room.clients.size,
     updatedAt: room.updatedAt,
   });
+});
+
+// Serve uploaded media files
+app.use('/api/uploads', express.static(UPLOADS_DIR));
+
+// Get current server storage statistics
+app.get('/api/server/storage', (_req, res) => {
+  try {
+    const stats = getStorageStats();
+    res.json(stats);
+  } catch (err) {
+    console.error('Failed to get storage stats:', err);
+    res.status(500).json({ error: 'Не удалось получить статистику хранилища' });
+  }
+});
+
+// Upload media file to server disk
+app.post('/api/upload', (req, res) => {
+  try {
+    const { filename, dataUrl } = req.body;
+    if (!filename || !dataUrl) {
+      return res.status(400).json({ error: 'Отсутствует имя файла или данные (dataUrl)' });
+    }
+
+    // Extract base64 payload
+    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ error: 'Неверный формат данных DataURL' });
+    }
+
+    const buffer = Buffer.from(matches[2], 'base64');
+    const stats = getStorageStats();
+
+    // Check if storage limit exceeded
+    if (stats.usedBytes + buffer.length > stats.totalLimitBytes) {
+      return res.status(413).json({
+        error: `Недостаточно места на сервере. Доступно: ${stats.freeFormatted}, размер файла: ${formatBytes(buffer.length)}`,
+      });
+    }
+
+    ensureUploadsDir();
+
+    // Generate safe clean filename
+    const ext = path.extname(filename).toLowerCase() || '.bin';
+    const cleanBase = path.basename(filename, ext).replace(/[^a-zA-Z0-9_\-\u0400-\u04FF]/g, '_').substring(0, 30);
+    const uniqueName = `${Date.now()}-${cleanBase}${ext}`;
+    const targetPath = path.join(UPLOADS_DIR, uniqueName);
+
+    fs.writeFileSync(targetPath, buffer);
+
+    const updatedStats = getStorageStats();
+    res.json({
+      ok: true,
+      url: `/api/uploads/${encodeURIComponent(uniqueName)}`,
+      filename: uniqueName,
+      originalName: filename,
+      size: buffer.length,
+      sizeFormatted: formatBytes(buffer.length),
+      storage: updatedStats,
+    });
+  } catch (err: any) {
+    console.error('File upload error:', err);
+    res.status(500).json({ error: err.message || 'Ошибка сохранения файла на сервере' });
+  }
 });
 
 async function startServer() {

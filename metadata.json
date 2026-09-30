@@ -1,6 +1,6 @@
 {
-  "name": "MiroFlow - Интерактивная онлайн-доска",
-  "description": "Мощная бесконечная интерактивная доска для брейншторминга, заметок, диаграмм и совместной работы в стиле Miro.",
+  "name": "Deskovery — Интерактивная мультимедиа доска",
+  "description": "Легковесная интерактивная доска для заметок, схем, видео, аудио и совместной работы.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

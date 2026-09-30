@@ -15,12 +15,6 @@ import {
   ArrowUpRight,
   PenTool,
   Highlighter,
-  CreditCard,
-  Frame,
-  Smile,
-  Image as ImageIcon,
-  Video,
-  Music,
   Film,
 } from 'lucide-react';
 
@@ -370,11 +364,10 @@ export const PrimaryToolbar: React.FC<PrimaryToolbarProps> = ({
             fileInputRef.current?.click();
           }
         }}
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:text-indigo-700 transition-all relative group shadow-xs cursor-pointer"
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:text-indigo-700 transition-all group shadow-xs cursor-pointer"
         title="Добавить мультимедиа (Изображение, Видео, Аудио, YouTube) или нажмите Ctrl+V"
       >
         <Film className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900" />
       </button>
     </aside>
   );
