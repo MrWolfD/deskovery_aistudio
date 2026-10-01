@@ -8,6 +8,7 @@ export type ToolType =
   | 'pen'
   | 'highlighter'
   | 'eraser'
+  | 'laser'
   | 'frame'
   | 'card'
   | 'stamp'
@@ -91,9 +92,16 @@ export interface BoardElement {
   text?: string;
   fontSize?: number;
   fontColor?: string;
+  fontFamily?: 'handwritten' | 'sans' | 'mono';
   textAlign?: 'left' | 'center' | 'right';
   isBold?: boolean;
   isItalic?: boolean;
+
+  // Excalidraw hand-drawn rough styling
+  drawStyle?: 'rough' | 'clean';
+  fillStyle?: 'solid' | 'hachure' | 'cross-hatch' | 'dots' | 'zigzag';
+  roughness?: number;
+  bowing?: number;
 
   // Specific properties
   shapeType?: ShapeType;

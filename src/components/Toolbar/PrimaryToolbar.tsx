@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
   PenTool,
   Highlighter,
+  Eraser,
+  Wand2,
   Film,
 } from 'lucide-react';
 
@@ -352,6 +354,44 @@ export const PrimaryToolbar: React.FC<PrimaryToolbarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Eraser Tool (Excalidraw) */}
+      <button
+        onClick={() => {
+          onSelectTool('eraser');
+          setShowStickyFlyout(false);
+          setShowShapeFlyout(false);
+          setShowPenFlyout(false);
+          setShowStampFlyout(false);
+        }}
+        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          activeTool === 'eraser'
+            ? 'bg-rose-600 text-white shadow-xs'
+            : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+        }`}
+        title="Ластик (0 или E)"
+      >
+        <Eraser className="w-5 h-5" />
+      </button>
+
+      {/* Laser Pointer Tool (Excalidraw) */}
+      <button
+        onClick={() => {
+          onSelectTool('laser');
+          setShowStickyFlyout(false);
+          setShowShapeFlyout(false);
+          setShowPenFlyout(false);
+          setShowStampFlyout(false);
+        }}
+        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
+          activeTool === 'laser'
+            ? 'bg-red-600 text-white shadow-xs animate-pulse'
+            : 'text-neutral-700 dark:text-slate-300 hover:bg-neutral-100 dark:hover:bg-slate-800'
+        }`}
+        title="Лазерная указка для демонстрации (L)"
+      >
+        <Wand2 className="w-5 h-5 text-red-500" />
+      </button>
 
       <div className="h-px bg-neutral-200 dark:bg-slate-800 my-1 mx-1" />
 

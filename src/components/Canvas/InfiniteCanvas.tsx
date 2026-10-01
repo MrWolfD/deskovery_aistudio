@@ -9,6 +9,7 @@ import {
   Viewport,
 } from '../../types/board';
 import {
+  distToSegment,
   getClosestAnchor,
   getElementAnchorPoint,
   isElementInMarquee,
@@ -25,6 +26,8 @@ import { DrawingItem } from './DrawingItem';
 import { TransformBox } from './TransformBox';
 import { ImageItem } from './ImageItem';
 import { MediaItem } from './MediaItem';
+import { Sparkles, Check, X as CloseIcon } from 'lucide-react';
+import { recognizeDrawnShape, RecognizedShape } from '../../utils/shapeRecognizer';
 
 interface InfiniteCanvasProps {
   elements: BoardElement[];
@@ -43,6 +46,7 @@ interface InfiniteCanvasProps {
   onUpdateElement: (id: string, updates: Partial<BoardElement>, saveToHistory?: boolean) => void;
   onUpdateMultipleElements: (updates: { id: string; changes: Partial<BoardElement> }[], saveToHistory?: boolean) => void;
   onDeleteSelected: () => void;
+  onDeleteElements?: (ids: string[]) => void;
   onStartPresentationFrame?: (frameId: string) => void;
   onUploadImageFile?: (file: File, position?: Point) => void;
   onUploadMediaFile?: (file: File, position?: Point) => void;
@@ -66,6 +70,8 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   onAddElement,
   onUpdateElement,
   onUpdateMultipleElements,
+  onDeleteSelected,
+  onDeleteElements,
   onStartPresentationFrame,
   onUploadImageFile,
   onUploadMediaFile,
@@ -78,6 +84,42 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+
+  // Excalidraw Eraser & Laser states
+  const [isErasing, setIsErasing] = useState(false);
+  const [eraserScreenPos, setEraserScreenPos] = useState<Point | null>(null);
+  const [laserTrail, setLaserTrail] = useState<{ id: number; point: Point; opacity: number }[]>([]);
+
+  // Smart Shape Recognition state
+  const [shapeSuggestion, setShapeSuggestion] = useState<{
+    drawingId: string;
+    shape: RecognizedShape;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!shapeSuggestion) return;
+    const timer = setTimeout(() => {
+      setShapeSuggestion(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [shapeSuggestion]);
+
+  // Smooth Laser trail fading loop
+  useEffect(() => {
+    let animId: number;
+    const fadeLaser = () => {
+      setLaserTrail((prev) => {
+        if (prev.length === 0) return prev;
+        const next = prev
+          .map((p) => ({ ...p, opacity: p.opacity - 0.04 }))
+          .filter((p) => p.opacity > 0);
+        return next;
+      });
+      animId = requestAnimationFrame(fadeLaser);
+    };
+    animId = requestAnimationFrame(fadeLaser);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
   // Process dropped or pasted media file (Image, Video, Audio)
   const handleProcessFile = useCallback(
@@ -93,6 +135,44 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
               rect
             )
           : { x: 0, y: 0 });
+
+      // Check for JSON or SVG with embedded scene data (Excalidraw feature)
+      if (file.name.endsWith('.svg') || file.type === 'image/svg+xml') {
+        const textReader = new FileReader();
+        textReader.onload = (event) => {
+          const content = event.target?.result as string;
+          const match = content.match(/<!-- deskovery-scene:(.*?) -->/);
+          if (match && match[1]) {
+            try {
+              const decoded = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
+              if (Array.isArray(decoded)) {
+                decoded.forEach((el) => onAddElement(el));
+                return;
+              }
+            } catch (e) {}
+          }
+          if (onUploadImageFile) onUploadImageFile(file, pos);
+        };
+        textReader.readAsText(file);
+        return;
+      }
+
+      if (file.name.endsWith('.json') || file.type === 'application/json') {
+        const textReader = new FileReader();
+        textReader.onload = (event) => {
+          const content = event.target?.result as string;
+          try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed.elements)) {
+              parsed.elements.forEach((el: BoardElement) => onAddElement(el));
+            } else if (Array.isArray(parsed)) {
+              parsed.forEach((el: BoardElement) => onAddElement(el));
+            }
+          } catch (e) {}
+        };
+        textReader.readAsText(file);
+        return;
+      }
 
       if (file.type.startsWith('video/')) {
         const reader = new FileReader();
@@ -403,6 +483,104 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
     };
   }, []);
 
+  // Excalidraw Eraser logic: tests collision with drawings, connectors, and shapes
+  const eraseElementsAtPoint = useCallback(
+    (pt: Point) => {
+      const radius = 22;
+      const hitIds: string[] = [];
+      for (const el of elements) {
+        if (el.type === 'drawing' && el.points) {
+          if (
+            el.points.some(
+              (p) => Math.hypot(p.x - pt.x, p.y - pt.y) <= radius + (el.strokeWidth || 3)
+            )
+          ) {
+            hitIds.push(el.id);
+          }
+        } else if (el.type === 'connector') {
+          const p1 = el.startPoint || { x: el.x, y: el.y };
+          const p2 = el.endPoint || { x: el.x + el.width, y: el.y + el.height };
+          const dist = distToSegment(pt, p1, p2);
+          if (dist <= radius + 6) {
+            hitIds.push(el.id);
+          }
+        } else {
+          if (
+            pt.x >= el.x - radius &&
+            pt.x <= el.x + el.width + radius &&
+            pt.y >= el.y - radius &&
+            pt.y <= el.y + el.height + radius
+          ) {
+            hitIds.push(el.id);
+          }
+        }
+      }
+      if (hitIds.length > 0) {
+        if (onDeleteElements) {
+          onDeleteElements(hitIds);
+        } else if (onDeleteSelected) {
+          onSelectElements(hitIds);
+          onDeleteSelected();
+        }
+      }
+    },
+    [elements, onDeleteElements, onDeleteSelected, onSelectElements]
+  );
+
+  // Convert freehand drawing into recognized Excalidraw shape
+  const handleConvertSuggestedShape = useCallback(() => {
+    if (!shapeSuggestion) return;
+    const { drawingId, shape } = shapeSuggestion;
+
+    if (onDeleteElements) {
+      onDeleteElements([drawingId]);
+    }
+
+    if (shape.type === 'shape') {
+      const newShapeEl: BoardElement = {
+        id: `shape-${Date.now()}`,
+        type: 'shape',
+        shapeType: shape.shapeType || 'rectangle',
+        x: shape.x,
+        y: shape.y,
+        width: shape.width,
+        height: shape.height,
+        fill: theme === 'dark' ? 'transparent' : '#ffffff',
+        stroke: theme === 'dark' ? '#f8fafc' : '#0f172a',
+        strokeWidth: 2,
+        drawStyle: 'rough',
+        fillStyle: 'hachure',
+        roughness: 1.2,
+        fontFamily: 'handwritten',
+        zIndex: elements.length + 10,
+      };
+      onAddElement(newShapeEl);
+      onSelectElements([newShapeEl.id]);
+    } else if (shape.type === 'connector' && shape.startPoint && shape.endPoint) {
+      const newConnEl: BoardElement = {
+        id: `conn-${Date.now()}`,
+        type: 'connector',
+        x: shape.x,
+        y: shape.y,
+        width: shape.width,
+        height: shape.height,
+        startPoint: shape.startPoint,
+        endPoint: shape.endPoint,
+        stroke: theme === 'dark' ? '#f8fafc' : '#0f172a',
+        strokeWidth: 2,
+        drawStyle: 'rough',
+        lineType: 'straight',
+        arrowEnd: true,
+        fontFamily: 'handwritten',
+        zIndex: elements.length + 10,
+      };
+      onAddElement(newConnEl);
+      onSelectElements([newConnEl.id]);
+    }
+
+    setShapeSuggestion(null);
+  }, [shapeSuggestion, onDeleteElements, onAddElement, onSelectElements, theme, elements.length]);
+
   // Global window listeners during active resizing for silky smooth tracking
   useEffect(() => {
     if (!activeResizeHandle || !resizeStartElement) return;
@@ -609,11 +787,15 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
         width: isCircle ? 140 : 160,
         height: isCircle ? 140 : 100,
         zIndex: elements.length + 10,
-        fill: '#ffffff',
-        stroke: '#0f172a',
+        fill: theme === 'dark' ? 'transparent' : '#ffffff',
+        stroke: theme === 'dark' ? '#f8fafc' : '#0f172a',
         strokeWidth: 2,
+        drawStyle: 'rough',
+        fillStyle: 'hachure',
+        roughness: 1.2,
+        fontFamily: 'handwritten',
         text: '',
-        fontSize: 14,
+        fontSize: 16,
       };
       onAddElement(newShape);
       onSelectElements([newShape.id]);
@@ -663,8 +845,9 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
         height: 40,
         zIndex: elements.length + 10,
         text: 'Введите текст',
-        fontSize: 18,
-        fontColor: '#0f172a',
+        fontSize: 20,
+        fontColor: theme === 'dark' ? '#f8fafc' : '#0f172a',
+        fontFamily: 'handwritten',
       };
       onAddElement(newText);
       onSelectElements([newText.id]);
@@ -718,6 +901,17 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
       return;
     }
 
+    if (activeTool === 'eraser') {
+      setIsErasing(true);
+      eraseElementsAtPoint(canvasPt);
+      return;
+    }
+
+    if (activeTool === 'laser') {
+      setLaserTrail((prev) => [...prev, { id: Date.now() + Math.random(), point: canvasPt, opacity: 1 }]);
+      return;
+    }
+
     if (activeTool === 'pen' || activeTool === 'highlighter') {
       setIsDrawing(true);
       setCurrentDrawPoints([canvasPt]);
@@ -767,6 +961,19 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const canvasPt = screenToCanvas(e.clientX, e.clientY, viewport, rect);
+
+    // Laser pointer movement
+    if (activeTool === 'laser') {
+      setLaserTrail((prev) => [...prev, { id: Date.now() + Math.random(), point: canvasPt, opacity: 1 }]);
+    }
+
+    // Eraser cursor position and drag-erase
+    if (activeTool === 'eraser') {
+      setEraserScreenPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      if (isErasing) {
+        eraseElementsAtPoint(canvasPt);
+      }
+    }
 
     // Report cursor position for real-time multiplayer
     if (onCursorMove) {
@@ -944,10 +1151,15 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
       setIsPanning(false);
     }
 
+    if (isErasing) {
+      setIsErasing(false);
+    }
+
     if (isDrawing && currentDrawPoints.length > 1) {
       const isHighlighter = activeTool === 'highlighter';
+      const newDrawingId = `drawing-${Date.now()}`;
       const newDrawing: BoardElement = {
-        id: `drawing-${Date.now()}`,
+        id: newDrawingId,
         type: 'drawing',
         x: 0,
         y: 0,
@@ -956,11 +1168,23 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
         zIndex: elements.length + 5,
         points: currentDrawPoints,
         isHighlighter,
-        stroke: isHighlighter ? '#fef08a' : '#0f172a',
+        stroke: isHighlighter ? '#fef08a' : (theme === 'dark' ? '#f8fafc' : '#0f172a'),
         strokeWidth: isHighlighter ? 24 : 3,
         opacity: isHighlighter ? 0.35 : 1,
       };
       onAddElement(newDrawing);
+
+      // Smart Shape Recognition check
+      if (!isHighlighter && currentDrawPoints.length >= 8) {
+        const detected = recognizeDrawnShape(currentDrawPoints);
+        if (detected) {
+          setShapeSuggestion({
+            drawingId: newDrawingId,
+            shape: detected,
+          });
+        }
+      }
+
       setIsDrawing(false);
       setCurrentDrawPoints([]);
     } else {
@@ -1135,8 +1359,10 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
     ? 'grabbing'
     : isSpacePressed || activeTool === 'hand'
     ? 'grab'
-    : activeTool === 'pen' || activeTool === 'highlighter'
+    : activeTool === 'pen' || activeTool === 'highlighter' || activeTool === 'laser'
     ? 'crosshair'
+    : activeTool === 'eraser'
+    ? 'none'
     : activeTool === 'sticky' || activeTool === 'shape' || activeTool === 'card' || activeTool === 'text' || activeTool === 'stamp'
     ? 'copy'
     : 'default';
@@ -1343,6 +1569,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
                     element={element}
                     isSelected={isSelected}
                     isConnecting={isConnecting}
+                    theme={theme}
                     onUpdateText={(id, text) =>
                       onUpdateElement(id, { text }, true)
                     }
@@ -1366,6 +1593,7 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
                   <TextItem
                     element={element}
                     isSelected={isSelected}
+                    theme={theme}
                     onUpdateText={(id, text) =>
                       onUpdateElement(id, { text }, true)
                     }
@@ -1461,6 +1689,103 @@ export const InfiniteCanvas: React.FC<InfiniteCanvasProps> = ({
           )}
         </g>
       </svg>
+
+      {/* Excalidraw Laser Pointer Trail overlay */}
+      {laserTrail.length > 0 && (
+        <svg
+          className="w-full h-full absolute inset-0 pointer-events-none z-40 overflow-visible"
+          style={{ width: '100%', height: '100%' }}
+        >
+          <g transform={`translate(${viewport.x}, ${viewport.y}) scale(${viewport.zoom})`}>
+            {laserTrail.map((item, idx) => {
+              if (idx === 0) return null;
+              const prev = laserTrail[idx - 1];
+              return (
+                <line
+                  key={item.id}
+                  x1={prev.point.x}
+                  y1={prev.point.y}
+                  x2={item.point.x}
+                  y2={item.point.y}
+                  stroke="#ef4444"
+                  strokeWidth={5 * item.opacity}
+                  strokeLinecap="round"
+                  opacity={item.opacity}
+                  style={{ filter: 'drop-shadow(0 0 6px #ef4444)' }}
+                />
+              );
+            })}
+            {laserTrail.length > 0 && (
+              <circle
+                cx={laserTrail[laserTrail.length - 1].point.x}
+                cy={laserTrail[laserTrail.length - 1].point.y}
+                r={4}
+                fill="#ffffff"
+                stroke="#ef4444"
+                strokeWidth={2}
+                style={{ filter: 'drop-shadow(0 0 8px #ef4444)' }}
+              />
+            )}
+          </g>
+        </svg>
+      )}
+
+      {/* Excalidraw Eraser circle cursor indicator */}
+      {activeTool === 'eraser' && eraserScreenPos && (
+        <div
+          className={`absolute pointer-events-none rounded-full border-2 ${
+            isErasing
+              ? 'border-rose-500 bg-rose-500/30 scale-110'
+              : 'border-neutral-500/80 bg-neutral-500/10'
+          } z-50 -translate-x-1/2 -translate-y-1/2 transition-all duration-75 shadow-xs`}
+          style={{
+            left: eraserScreenPos.x,
+            top: eraserScreenPos.y,
+            width: 24,
+            height: 24,
+          }}
+        />
+      )}
+
+      {/* Smart Shape Assist Floating Suggestion Chip */}
+      {shapeSuggestion && (
+        <div
+          className="absolute z-50 flex items-center gap-2 px-3 py-1.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-indigo-200 dark:border-indigo-800 text-xs animate-fade-in pointer-events-auto"
+          style={{
+            left: Math.max(16, (shapeSuggestion.shape.x * viewport.zoom + viewport.x)),
+            top: Math.max(16, (shapeSuggestion.shape.y * viewport.zoom + viewport.y) - 45),
+          }}
+        >
+          <div className="flex items-center gap-1.5 font-medium text-indigo-600 dark:text-indigo-400">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>
+              {shapeSuggestion.shape.type === 'connector'
+                ? 'Стрелка?'
+                : shapeSuggestion.shape.shapeType === 'circle'
+                ? 'Круг?'
+                : shapeSuggestion.shape.shapeType === 'diamond'
+                ? 'Ромб?'
+                : 'Прямоугольник?'}
+            </span>
+          </div>
+
+          <button
+            onClick={handleConvertSuggestedShape}
+            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors cursor-pointer shadow-2xs"
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Выровнять</span>
+          </button>
+
+          <button
+            onClick={() => setShapeSuggestion(null)}
+            className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            title="Оставить как набросок"
+          >
+            <CloseIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

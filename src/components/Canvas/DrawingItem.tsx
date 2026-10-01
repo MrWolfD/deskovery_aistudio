@@ -11,7 +11,13 @@ export const DrawingItem: React.FC<DrawingItemProps> = ({ element, isSelected })
   if (!element.points || element.points.length === 0) return null;
 
   const d = generateSmoothSvgPath(element.points);
-  const strokeColor = isSelected ? '#3b82f6' : (element.stroke || '#0f172a');
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const defaultStroke = isDark ? '#f8fafc' : '#0f172a';
+  const effectiveStroke =
+    (!element.stroke || element.stroke === '#0f172a' || element.stroke === '#000000') && isDark && !element.isHighlighter
+      ? '#f8fafc'
+      : (element.stroke || defaultStroke);
+  const strokeColor = isSelected ? '#3b82f6' : effectiveStroke;
   const strokeWidth = element.strokeWidth || (element.isHighlighter ? 24 : 3);
   const opacity = element.isHighlighter ? 0.35 : (element.opacity || 1);
 

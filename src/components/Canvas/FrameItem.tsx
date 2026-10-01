@@ -43,7 +43,7 @@ export const FrameItem: React.FC<FrameItemProps> = ({
     >
       {/* Frame Header Bar */}
       <div
-        className="absolute -top-9 left-0 flex items-center gap-2 pointer-events-auto bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-md shadow-xs border border-neutral-200"
+        className="absolute -top-9 left-0 flex items-center gap-2 pointer-events-auto bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xs px-2.5 py-1 rounded-md shadow-xs border border-neutral-200 dark:border-neutral-700/80 transition-colors"
         onDoubleClick={(e) => {
           e.stopPropagation();
           setIsEditing(true);
@@ -57,16 +57,16 @@ export const FrameItem: React.FC<FrameItemProps> = ({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             autoFocus
-            className="text-xs font-semibold text-neutral-800 outline-none border-b border-blue-500 bg-transparent min-w-[120px]"
+            className="text-xs font-semibold text-neutral-800 dark:text-neutral-100 outline-none border-b border-indigo-500 bg-transparent min-w-[120px]"
           />
         ) : (
-          <span className="text-xs font-semibold text-neutral-800 tracking-tight cursor-pointer hover:text-blue-600 transition-colors">
+          <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-100 tracking-tight cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
             {title}
           </span>
         )}
 
         {element.framePreset && (
-          <span className="text-[10px] text-neutral-400 font-mono">
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
             {element.framePreset}
           </span>
         )}
@@ -77,7 +77,7 @@ export const FrameItem: React.FC<FrameItemProps> = ({
               e.stopPropagation();
               onStartPresentation(element.id);
             }}
-            className="p-0.5 rounded text-neutral-400 hover:text-blue-600 hover:bg-neutral-100 transition-colors"
+            className="p-0.5 rounded text-neutral-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
             title="Запустить презентацию с этого фрейма"
           >
             <Play className="w-3 h-3 fill-current" />

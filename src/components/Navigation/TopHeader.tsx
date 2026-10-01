@@ -12,6 +12,8 @@ import {
   Moon,
   ChevronDown,
   Pencil,
+  Sparkles,
+  Search,
 } from 'lucide-react';
 import { Collaborator } from '../../types/board';
 import { ConnectionStatus } from '../../services/multiplayer';
@@ -35,6 +37,8 @@ interface TopHeaderProps {
   onUndo: () => void;
   onRedo: () => void;
   onOpenExport: () => void;
+  onOpenTemplates?: () => void;
+  onOpenCommandPalette?: () => void;
   onStartPresentation: () => void;
   hasFrames: boolean;
   collaborators: Collaborator[];
@@ -58,6 +62,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onUndo,
   onRedo,
   onOpenExport,
+  onOpenTemplates,
+  onOpenCommandPalette,
   onStartPresentation,
   hasFrames,
   collaborators,
@@ -211,6 +217,36 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               <span>Презентация</span>
             </button>
           </>
+        )}
+
+        {/* Templates library button */}
+        {onOpenTemplates && (
+          <>
+            <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
+            <button
+              onClick={onOpenTemplates}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-xs font-semibold border border-amber-200/80 dark:border-amber-800/60 transition-colors shadow-2xs cursor-pointer"
+              title="Библиотека готовых шаблонов (Flowchart, Архитектура, Mind Map)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span className="hidden sm:inline">Шаблоны</span>
+            </button>
+          </>
+        )}
+
+        {/* Command palette search button */}
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-medium border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+            title="Командная панель (Ctrl + K)"
+          >
+            <Search className="w-3.5 h-3.5 text-neutral-400" />
+            <span className="hidden md:inline">Команды</span>
+            <kbd className="hidden lg:inline px-1 py-0.2 bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-700 text-[10px] font-mono text-neutral-400">
+              ⌘K
+            </kbd>
+          </button>
         )}
       </div>
 

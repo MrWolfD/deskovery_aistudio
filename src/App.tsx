@@ -27,6 +27,8 @@ import { PresentationModal } from './components/Modals/PresentationModal';
 import { ShareModal } from './components/Modals/ShareModal';
 import { MediaUploadModal } from './components/Modals/MediaUploadModal';
 import { UserJoinModal } from './components/Modals/UserJoinModal';
+import { TemplatesModal } from './components/Modals/TemplatesModal';
+import { CommandPalette } from './components/Modals/CommandPalette';
 import { MultiplayerService, ConnectionStatus } from './services/multiplayer';
 import { LobbyPage } from './components/Lobby/LobbyPage';
 import { LandingGate } from './components/Auth/LandingGate';
@@ -88,6 +90,8 @@ export default function App() {
   >();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isMediaUploadOpen, setIsMediaUploadOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Theme State: 'light' | 'dark'
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -514,6 +518,30 @@ export default function App() {
     );
     setSelectedIds([]);
   }, [elements, selectedIds, pushHistory]);
+
+  // Delete multiple elements by ID (used by Excalidraw eraser tool)
+  const handleDeleteElements = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      pushHistory(elements);
+      const idsToDelete = elements
+        .filter(
+          (el) =>
+            ids.includes(el.id) ||
+            (el.fromId && ids.includes(el.fromId)) ||
+            (el.toId && ids.includes(el.toId))
+        )
+        .map((el) => el.id);
+
+      multiplayerServiceRef.current?.broadcastElementDelete(idsToDelete);
+
+      setElements((prev) =>
+        prev.filter((el) => !idsToDelete.includes(el.id))
+      );
+      setSelectedIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+    },
+    [elements, pushHistory]
+  );
 
   // Duplicate Selected Elements
   const handleDuplicate = useCallback(() => {
@@ -972,6 +1000,30 @@ export default function App() {
     multiplayerServiceRef.current?.broadcastBoardSyncAll(newElements, title);
   };
 
+  // Viewport Center
+  const viewportCenter = useMemo(() => {
+    const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    return {
+      x: (screenWidth / 2 - viewport.x) / viewport.zoom,
+      y: (screenHeight / 2 - viewport.y) / viewport.zoom,
+    };
+  }, [viewport]);
+
+  // Insert Template
+  const handleInsertTemplate = useCallback(
+    (templateElements: BoardElement[]) => {
+      pushHistory(elements);
+      setElements((prev) => [...prev, ...templateElements]);
+      setSelectedIds(templateElements.map((el) => el.id));
+      multiplayerServiceRef.current?.broadcastBoardSyncAll(
+        [...elements, ...templateElements],
+        boardTitle
+      );
+    },
+    [elements, pushHistory, boardTitle]
+  );
+
   // Clear Board
   const handleClearBoard = () => {
     pushHistory(elements);
@@ -1151,6 +1203,20 @@ export default function App() {
         return;
       }
 
+      // Command Palette (Ctrl+K or Cmd+K)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Export Dialog (Ctrl+E or Cmd+E)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setIsExportModalOpen((prev) => !prev);
+        return;
+      }
+
       // Duplicate (Ctrl+D)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
@@ -1177,27 +1243,55 @@ export default function App() {
       }
 
       // Tool hotkeys
+      // Excalidraw Number & Letter Hotkeys
       switch (e.key.toLowerCase()) {
-        case 'v':
-          setActiveTool('select');
+        case '1':
+          handleToggleLock();
           break;
+        case '2':
         case 'h':
           setActiveTool('hand');
           break;
-        case 's':
-          setActiveTool('sticky');
+        case '3':
+        case 'v':
+          setActiveTool('select');
           break;
+        case '4':
         case 'r':
+          setSelectedShapeType('rectangle');
           setActiveTool('shape');
           break;
+        case '5':
+          setSelectedShapeType('diamond');
+          setActiveTool('shape');
+          break;
+        case '6':
+        case 'o':
+          setSelectedShapeType('circle');
+          setActiveTool('shape');
+          break;
+        case '7':
+        case 'a':
         case 'c':
           setActiveTool('connector');
           break;
+        case '8':
+        case 'p':
+          setActiveTool('pen');
+          break;
+        case '9':
         case 't':
           setActiveTool('text');
           break;
-        case 'p':
-          setActiveTool('pen');
+        case '0':
+        case 'e':
+          setActiveTool('eraser');
+          break;
+        case 'l':
+          setActiveTool('laser');
+          break;
+        case 's':
+          setActiveTool('sticky');
           break;
         case 'f':
           setActiveTool('frame');
@@ -1221,6 +1315,7 @@ export default function App() {
     handleDeleteSelected,
     handleGroup,
     handleUngroup,
+    handleToggleLock,
   ]);
 
   // Selected Elements Object List for ContextToolbar
@@ -1306,6 +1401,8 @@ export default function App() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onStartPresentation={() => handleStartPresentation()}
         hasFrames={frames.length > 0}
         collaborators={collaborators}
@@ -1340,6 +1437,7 @@ export default function App() {
           onUpdateElement={handleUpdateElement}
           onUpdateMultipleElements={handleUpdateMultipleElements}
           onDeleteSelected={handleDeleteSelected}
+          onDeleteElements={handleDeleteElements}
           onStartPresentationFrame={handleStartPresentation}
           onUploadImageFile={handleUploadImageFile}
           onUploadMediaFile={handleUploadMediaFile}
@@ -1472,6 +1570,31 @@ export default function App() {
         onSaveUser={handleSaveUserFromModal}
         boardTitle={boardTitle}
         theme={theme}
+      />
+
+      {/* Templates Library Modal */}
+      <TemplatesModal
+        isOpen={isTemplatesModalOpen}
+        onClose={() => setIsTemplatesModalOpen(false)}
+        onInsertTemplate={handleInsertTemplate}
+        centerPoint={viewportCenter}
+      />
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelectTool={setActiveTool}
+        onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+        onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenShare={() => setIsShareModalOpen(true)}
+        onToggleTheme={toggleTheme}
+        onResetZoom={handleResetZoom}
+        onZoomToFit={handleFitToContent}
+        onToggleGrid={() =>
+          setGridType((prev) => (prev === 'dots' ? 'lines' : prev === 'lines' ? 'none' : 'dots'))
+        }
+        onClearBoard={handleClearBoard}
       />
     </div>
   );

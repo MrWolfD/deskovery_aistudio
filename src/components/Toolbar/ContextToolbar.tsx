@@ -53,19 +53,46 @@ const STICKY_COLORS: { name: StickyColor; hex: string }[] = [
   { name: 'dark', hex: '#1e293b' },
 ];
 
+const STROKE_PALETTE = [
+  '#0f172a',
+  '#f8fafc',
+  '#e03131',
+  '#2f9e44',
+  '#1971c2',
+  '#f59e0b',
+  '#9c36b5',
+  '#d9480f',
+  '#475569',
+];
+
 const SHAPE_PALETTE = [
+  'transparent',
   '#ffffff',
   '#f8fafc',
-  '#fef08a',
-  '#bbf7d0',
-  '#bae6fd',
-  '#fbcfe8',
-  '#e9d5ff',
-  '#fed7aa',
+  '#ffc9c9',
+  '#fcc2d7',
+  '#eebefa',
+  '#d0bfff',
+  '#dbe4ff',
+  '#a5d8ff',
+  '#c3fae8',
+  '#d3f9d8',
+  '#fff3bf',
+  '#ffe8cc',
+  '#1e293b',
+];
+
+const TEXT_PALETTE = [
+  '#ffffff',
+  '#0f172a',
+  '#6366f1',
   '#3b82f6',
   '#10b981',
   '#ef4444',
-  '#1e293b',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
 ];
 
 export const ContextToolbar: React.FC<ContextToolbarProps> = ({
@@ -82,6 +109,8 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
   onTidyUp,
 }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showStrokePicker, setShowStrokePicker] = useState(false);
+  const [showFillMenu, setShowFillMenu] = useState(false);
 
   if (selectedElements.length === 0) return null;
 
@@ -89,6 +118,7 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
   const isMulti = selectedElements.length > 1;
   const isSticky = first.type === 'sticky';
   const isShape = first.type === 'shape';
+  const isPureText = first.type === 'text';
   const isConnector = first.type === 'connector';
   const isText = first.type === 'text' || first.type === 'sticky' || first.type === 'shape';
   const isLocked = selectedElements.every((el) => el.locked);
@@ -155,10 +185,255 @@ export const ContextToolbar: React.FC<ContextToolbarProps> = ({
         </div>
       )}
 
+      {/* Stroke Color Picker for Shapes & Connectors */}
+      {(isShape || isConnector) && (
+        <div className="relative">
+          <button
+            onClick={() => setShowStrokePicker(!showStrokePicker)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-neutral-200 dark:border-neutral-700 cursor-pointer"
+            title="Цвет контура"
+          >
+            <div
+              className="w-4 h-4 rounded-full border-2 border-neutral-400 dark:border-neutral-500 shadow-2xs"
+              style={{
+                backgroundColor: first.stroke || '#0f172a',
+              }}
+            />
+            <span className="text-[10px] text-neutral-500 font-medium">Контур</span>
+          </button>
+
+          {showStrokePicker && (
+            <div className="absolute top-full left-0 mt-2 p-2 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 flex gap-1.5 z-50">
+              {STROKE_PALETTE.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => {
+                    applyToAll({ stroke: hex });
+                    setShowStrokePicker(false);
+                  }}
+                  className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 hover:scale-110 transition-transform cursor-pointer"
+                  style={{ backgroundColor: hex }}
+                  title={hex}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Color Picker for pure Text elements */}
+      {isPureText && (
+        <div className="relative">
+          <button
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-neutral-200 dark:border-neutral-700 cursor-pointer"
+            title="Цвет текста"
+          >
+            <div
+              className="w-4 h-4 rounded-full border border-neutral-300 dark:border-neutral-600 shadow-2xs"
+              style={{
+                backgroundColor: first.fontColor || '#ffffff',
+              }}
+            />
+            <Palette className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+          </button>
+
+          {showColorPicker && (
+            <div className="absolute top-full left-0 mt-2 p-2 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 flex gap-1.5 z-50">
+              {TEXT_PALETTE.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => {
+                    applyToAll({ fontColor: hex });
+                    setShowColorPicker(false);
+                  }}
+                  className="w-6 h-6 rounded-full border border-neutral-300 dark:border-neutral-700 hover:scale-110 transition-transform cursor-pointer"
+                  style={{ backgroundColor: hex }}
+                  title={hex === '#ffffff' ? 'Белый' : hex === '#0f172a' ? 'Темный' : hex}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Excalidraw Shape Hand-drawn & Hatching Controls */}
+      {isShape && !isMulti && (
+        <>
+          <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
+
+          {/* Hand-drawn vs Clean Mode */}
+          <button
+            onClick={() =>
+              applyToAll({ drawStyle: first.drawStyle === 'clean' ? 'rough' : 'clean' })
+            }
+            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+              first.drawStyle !== 'clean'
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+            }`}
+            title={
+              first.drawStyle === 'clean'
+                ? 'Переключить на ручной набросок (Excalidraw)'
+                : 'Переключить на строгую геометрию'
+            }
+          >
+            {first.drawStyle === 'clean' ? '📐 Геометрия' : '✏️ Набросок'}
+          </button>
+
+          {/* Hatching Fill Style */}
+          {first.drawStyle !== 'clean' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowFillMenu(!showFillMenu)}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border border-neutral-200 dark:border-neutral-700 cursor-pointer"
+                title="Стиль штриховки Excalidraw"
+              >
+                <span>
+                  {first.fillStyle === 'cross-hatch'
+                    ? '▦'
+                    : first.fillStyle === 'solid'
+                    ? '⬛'
+                    : first.fillStyle === 'dots'
+                    ? '⁖'
+                    : '▧'}
+                </span>
+                <span className="text-[10px]">
+                  {first.fillStyle === 'cross-hatch'
+                    ? 'Сетка'
+                    : first.fillStyle === 'solid'
+                    ? 'Сплошная'
+                    : first.fillStyle === 'dots'
+                    ? 'Точки'
+                    : 'Штрих'}
+                </span>
+              </button>
+
+              {showFillMenu && (
+                <div className="absolute top-full left-0 mt-2 p-1.5 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 flex flex-col gap-1 z-50 min-w-[130px]">
+                  <button
+                    onClick={() => {
+                      applyToAll({ fillStyle: 'hachure' });
+                      setShowFillMenu(false);
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs text-left cursor-pointer"
+                  >
+                    <span>▧</span> <span>Штриховка</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      applyToAll({ fillStyle: 'cross-hatch' });
+                      setShowFillMenu(false);
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs text-left cursor-pointer"
+                  >
+                    <span>▦</span> <span>Сетка</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      applyToAll({ fillStyle: 'solid' });
+                      setShowFillMenu(false);
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs text-left cursor-pointer"
+                  >
+                    <span>⬛</span> <span>Сплошная</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      applyToAll({ fillStyle: 'dots' });
+                      setShowFillMenu(false);
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs text-left cursor-pointer"
+                  >
+                    <span>⁖</span> <span>Точки</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Roughness / Sloppiness */}
+          {first.drawStyle !== 'clean' && (
+            <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg" title="Степень небрежности наброска (Sloppiness)">
+              <button
+                onClick={() => applyToAll({ roughness: 0.3 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                  (first.roughness ?? 1.2) <= 0.5
+                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 shadow-2xs'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                }`}
+                title="Строгий (Архитектор)"
+              >
+                Строгий
+              </button>
+              <button
+                onClick={() => applyToAll({ roughness: 1.2 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                  (first.roughness ?? 1.2) > 0.5 && (first.roughness ?? 1.2) < 1.8
+                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 shadow-2xs'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                }`}
+                title="Эскиз (Художник)"
+              >
+                Эскиз
+              </button>
+              <button
+                onClick={() => applyToAll({ roughness: 2.2 })}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                  (first.roughness ?? 1.2) >= 1.8
+                    ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 shadow-2xs'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                }`}
+                title="Свободный (Мультяшный)"
+              >
+                Свободный
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Typography Controls */}
       {isText && !isMulti && (
         <>
           <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
+
+          {/* Excalidraw Font Family Selector */}
+          <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-800/80 p-0.5 rounded-lg">
+            <button
+              onClick={() => applyToAll({ fontFamily: 'handwritten' })}
+              className={`px-1.5 py-0.5 rounded text-[11px] transition-colors cursor-pointer ${
+                (first.fontFamily || 'handwritten') === 'handwritten'
+                  ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 font-semibold shadow-2xs'
+                  : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+              }`}
+              title="Рукописный шрифт Excalidraw"
+            >
+              ✏️ Ручной
+            </button>
+            <button
+              onClick={() => applyToAll({ fontFamily: 'sans' })}
+              className={`px-1.5 py-0.5 rounded text-[11px] transition-colors cursor-pointer ${
+                first.fontFamily === 'sans'
+                  ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 font-semibold shadow-2xs'
+                  : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+              }`}
+              title="Стандартный шрифт без засечек"
+            >
+              🔤 Обычный
+            </button>
+            <button
+              onClick={() => applyToAll({ fontFamily: 'mono' })}
+              className={`px-1.5 py-0.5 rounded text-[11px] transition-colors cursor-pointer font-mono ${
+                first.fontFamily === 'mono'
+                  ? 'bg-white dark:bg-neutral-700 text-indigo-600 dark:text-indigo-300 font-semibold shadow-2xs'
+                  : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+              }`}
+              title="Моноширинный шрифт (Код)"
+            >
+              💻 Код
+            </button>
+          </div>
 
           {/* Font Size */}
           <div className="flex items-center gap-1">
